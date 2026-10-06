@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SandinFinance.Core/SandinFinance.Core.csproj" />
+    <Project Path="src/SandinFinance.Desktop/SandinFinance.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SandinFinance.Checks/SandinFinance.Checks.csproj" />
+    <Project Path="tests/SandinFinance.UiChecks/SandinFinance.UiChecks.csproj" />
+  </Folder>
+</Solution>

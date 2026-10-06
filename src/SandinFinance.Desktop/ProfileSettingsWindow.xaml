@@ -1,0 +1,16 @@
+<Window x:Class="SandinFinance.Desktop.ProfileSettingsWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Style="{StaticResource {x:Type Window}}" Title="Настройки профиля — SandinFinance"
+ Width="540" Height="520" MinWidth="480" MinHeight="480" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Language="ru-RU">
+ <StackPanel Margin="28">
+  <TextBlock Text="Настройки профиля" Style="{StaticResource DialogTitle}"/>
+  <TextBlock x:Name="NameText" Text="Sandin" Style="{StaticResource SectionTitle}" Margin="0,20,0,16"/>
+  <TextBlock Text="Папка профиля" Foreground="#607780" Margin="0,0,0,6"/>
+  <TextBox x:Name="DirectoryText" IsReadOnly="True" TextWrapping="Wrap"/>
+  <TextBlock Text="Счета, история, категории и иконки сохраняются в этой папке автоматически." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,20"/>
+  <Button x:Name="ChangePinButton" Content="Изменить PIN" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="ChangePin_Click"/>
+  <TextBlock Text="PIN защищает вход в приложение. Файлы профиля пока не зашифрованы." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,0"/>
+  <TextBlock x:Name="StatusText" Foreground="#12796B" TextWrapping="Wrap" Margin="0,12,0,0"/>
+ </StackPanel>
+</Window>

@@ -15,4 +15,10 @@ git clone https://github.com/Sandinoff/SandinFinance.git '<папка проек
 
 Убедитесь на GitHub, что `Sandinoff/SandinFinance` имеет видимость **Private**. При необходимости: Settings → General → Danger Zone → Change repository visibility → Make private.
 
-После клонирования это папка исходного кода, а не установленное приложение: разработка ещё не началась.
+После клонирования это папка исходного кода. Для запуска первой версии установите .NET 10 SDK и выполните из папки проекта:
+
+```powershell
+dotnet run --project src/SandinFinance.Desktop
+```
+
+Функции первой версии и расположение пользовательских данных описаны в [README.md](../README.md).

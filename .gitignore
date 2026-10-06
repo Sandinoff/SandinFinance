@@ -8,6 +8,12 @@
 # Personal financial data and local backups
 /data/
 /backups/
+**/profile.json
+**/profile.json.*
+**/accounts.json
+**/accounts.json.*
+**/categories.json
+**/categories.json.*
 *.db
 *.db-*
 *.sqlite
@@ -25,3 +31,10 @@ __pycache__/
 *.log
 .DS_Store
 Thumbs.db
+
+# .NET and IDE output
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo

@@ -1,0 +1,66 @@
+<Window x:Class="SandinFinance.Desktop.AccountDialog"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Style="{StaticResource {x:Type Window}}"
+ Title="Новый счёт — SandinFinance" Width="570" Height="790" MinWidth="480" MinHeight="540"
+ WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Language="ru-RU">
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel Margin="28">
+   <TextBlock x:Name="HeadingText" Text="Новый счёт" Style="{StaticResource DialogTitle}"/>
+   <TextBlock x:Name="IntroText" Text="Укажите сумму, с которой начнётся учёт." Foreground="#607780" Margin="0,6,0,22" TextWrapping="Wrap"/>
+   <Label Content="Название" Target="{Binding ElementName=NameInput}" Padding="0,0,0,6"/>
+   <TextBox x:Name="NameInput" MaxLength="80" AutomationProperties.AutomationId="AccountName"/>
+   <Label Content="Тип счёта" Target="{Binding ElementName=TypeInput}" Padding="0,16,0,6"/>
+   <ComboBox x:Name="TypeInput" SelectedIndex="0" SelectionChanged="TypeInput_SelectionChanged" AutomationProperties.AutomationId="AccountType">
+    <ComboBoxItem Content="Наличные"/><ComboBoxItem Content="Дебетовая карта"/><ComboBoxItem Content="Кредитная карта"/><ComboBoxItem Content="Накопительный счёт"/>
+   </ComboBox>
+   <Label x:Name="BalanceLabel" Content="Начальный остаток, ₽" Target="{Binding ElementName=BalanceInput}" Padding="0,16,0,6"/>
+   <TextBox x:Name="BalanceInput" Text="0" MaxLength="32" AutomationProperties.AutomationId="OpeningBalance"/>
+   <StackPanel x:Name="CreditFields" Visibility="Collapsed">
+    <Label Content="Кредитный лимит, ₽" Target="{Binding ElementName=LimitInput}" Padding="0,16,0,6"/>
+    <TextBox x:Name="LimitInput" Text="0" MaxLength="32" AutomationProperties.AutomationId="CreditLimit"/>
+    <Label Content="Лимит трат в месяц, ₽ (0 — без лимита)" Padding="0,16,0,6"/>
+    <TextBox x:Name="SpendingLimitInput" Text="0" MaxLength="32"/>
+    <TextBlock Text="Учитываются только расходы с этой кредитки с 1-го числа месяца. Остаток лимита показывается крупно, полный остаток карты — ниже." Foreground="#607780" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    <Label Content="Беспроцентный период, дней" Target="{Binding ElementName=GraceDaysInput}" Padding="0,16,0,6"/>
+    <TextBox x:Name="GraceDaysInput" Text="0" MaxLength="3"/>
+    <Label Content="Правило погашения покупок" Target="{Binding ElementName=GraceRuleInput}" Padding="0,16,0,6"/>
+    <ComboBox x:Name="GraceRuleInput" SelectedIndex="0">
+     <ComboBoxItem Content="Не настроено"/>
+     <ComboBoxItem Content="Покупки месяца — до конца следующего"/>
+     <ComboBoxItem Content="Конец месяца покупок + дни, затем конец месяца"/>
+     <ComboBoxItem Content="Выписка — оплата до конца месяца выписки"/>
+     <ComboBoxItem Content="Сбер: месяц покупок + три месяца на погашение"/>
+    </ComboBox>
+    <Label Content="День выписки (для правила выписки)" Padding="0,16,0,6"/>
+    <TextBox x:Name="StatementDayInput" Text="8" MaxLength="2"/>
+    <Label Content="Часть начального долга к погашению, ₽" Padding="0,16,0,6"/>
+    <TextBox x:Name="OpeningPaymentInput" Text="0" MaxLength="32"/>
+    <Label Content="Погасить начальный долг к дате" Padding="0,16,0,6"/>
+    <DatePicker x:Name="OpeningPaymentDateInput" Padding="6"/>
+    <TextBlock Text="Настройки применяются к новым покупкам. Начальный долг не имеет графика, поскольку даты покупок неизвестны." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,0"/>
+   </StackPanel>
+   <StackPanel x:Name="SavingsFields" Visibility="Collapsed">
+    <Label Content="Годовая процентная ставка, %" Target="{Binding ElementName=RateInput}" Padding="0,16,0,6"/>
+    <TextBox x:Name="RateInput" Text="0" MaxLength="12"/>
+    <Label Content="Когда добавлять проценты к остатку" Target="{Binding ElementName=PayoutInput}" Padding="0,16,0,6"/>
+    <ComboBox x:Name="PayoutInput" SelectedIndex="0">
+     <ComboBoxItem Content="Ежедневно, с капитализацией"/>
+     <ComboBoxItem Content="В конце месяца"/>
+    </ComboBox>
+    <TextBlock Text="Расчёт за завершённые дни: остаток × ставка / 100 / 365 (366). Пропущенные дни учитываются при запуске. Изменение ставки действует с сегодняшнего дня. При смене способа выплаты ожидающие проценты зачисляются." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,0"/>
+   </StackPanel>
+   <Label Content="Дата начала учёта" Target="{Binding ElementName=DateInput}" Padding="0,16,0,6"/>
+   <DatePicker x:Name="DateInput" Padding="6" AutomationProperties.AutomationId="OpeningDate"/>
+   <TextBlock x:Name="HintText" Text="Начальная сумма не считается доходом." Foreground="#607780" TextWrapping="Wrap" Margin="0,16,0,0"/>
+   <TextBlock x:Name="ErrorText" Foreground="#A52828" TextWrapping="Wrap" Margin="0,12,0,12" AutomationProperties.LiveSetting="Assertive"/>
+  </StackPanel>
+ </ScrollViewer>
+   <StackPanel Grid.Row="1" Margin="28,12,28,22" Orientation="Horizontal" HorizontalAlignment="Right">
+    <Button Content="Отмена" IsCancel="True" Margin="0,0,10,0"/>
+    <Button x:Name="SaveButton" Content="Создать счёт" Style="{StaticResource PrimaryButton}" IsDefault="True" Click="Save_Click" AutomationProperties.AutomationId="SaveAccount"/>
+   </StackPanel>
+ </Grid>
+</Window>

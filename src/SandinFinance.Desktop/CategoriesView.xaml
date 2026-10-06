@@ -1,0 +1,59 @@
+<UserControl x:Class="SandinFinance.Desktop.CategoriesView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+  <StackPanel Margin="30,24,30,16">
+   <TextBlock x:Name="HeadingText" Text="Категории" Style="{StaticResource PageTitle}"/>
+   <TabControl x:Name="KindTabs" SelectedIndex="0" SelectionChanged="Kind_Changed" Margin="0,16,0,16" Background="Transparent" BorderThickness="0" FontSize="16">
+    <TabItem Header="Расходы" Padding="18,8"/><TabItem Header="Доходы" Padding="18,8"/>
+   </TabControl>
+   <TextBlock x:Name="DescriptionText" Text="Категории и магазины для подробного учёта расходов" Foreground="#607780" TextWrapping="Wrap" Margin="0,6,0,24"/>
+   <DockPanel Margin="0,0,0,18">
+    <Button x:Name="CreateButton" Content="+ Создать категорию" Style="{StaticResource PrimaryButton}" DockPanel.Dock="Right" Click="Create_Click"/>
+    <TextBlock x:Name="CountText" Text="Категории · 0" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
+   </DockPanel>
+   <Border x:Name="EmptyState" Style="{StaticResource Card}">
+    <StackPanel>
+     <TextBlock Text="Создайте свою первую категорию" Style="{StaticResource SectionTitle}" TextWrapping="Wrap"/>
+     <TextBlock x:Name="EmptyText" Text="Например, «Продукты». Выберите цвет и иконку, затем добавьте магазины." Foreground="#607780" TextWrapping="Wrap" Margin="0,10,0,0"/>
+    </StackPanel>
+   </Border>
+   <ItemsControl x:Name="CategoriesList">
+    <ItemsControl.ItemTemplate>
+     <DataTemplate>
+      <Border Style="{StaticResource Card}" Margin="0,0,0,14" AllowDrop="True" DragOver="CategoryCard_DragOver" DragLeave="CategoryCard_DragLeave" Drop="CategoryCard_Drop">
+       <StackPanel>
+        <DockPanel>
+         <Button Content="Настроить" DockPanel.Dock="Right" Click="Edit_Click" Padding="12,6" Margin="14,0,0,0" VerticalAlignment="Center"/>
+         <TextBlock DockPanel.Dock="Left" Text="⋮⋮" FontSize="20" Padding="0,0,12,0" VerticalAlignment="Center" Cursor="SizeAll" ToolTip="Перетащить категорию" PreviewMouseLeftButtonDown="DragHandle_MouseDown" PreviewMouseMove="DragHandle_MouseMove"/>
+         <Border DockPanel.Dock="Left" Background="{Binding ColorHex}" Width="52" Height="52" CornerRadius="12" Margin="0,0,16,0">
+          <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe UI Emoji" FontSize="25" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+         </Border>
+         <TextBlock Text="{Binding Name}" Style="{StaticResource SectionTitle}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </DockPanel>
+        <Expander Header="{Binding MerchantsHeading}" Margin="0,18,0,0" IsExpanded="False" Visibility="{Binding HasMerchants, Converter={StaticResource BooleanVisibility}}">
+         <StackPanel Margin="0,10,0,0">
+          <ItemsControl ItemsSource="{Binding Merchants}">
+           <ItemsControl.ItemTemplate><DataTemplate><DockPanel Margin="0,0,0,10">
+            <Button DockPanel.Dock="Right" Content="PNG…" Padding="10,5" ToolTip="Загрузить или заменить PNG-иконку" Click="SetMerchantIcon_Click"/>
+            <Button DockPanel.Dock="Right" Content="×" Padding="8,5" Margin="0,0,6,0" ToolTip="Убрать иконку" Click="ClearMerchantIcon_Click" Visibility="{Binding HasPngIcon, Converter={StaticResource BooleanVisibility}}"/>
+            <ContentControl DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource MerchantBadge}" Margin="0,0,10,0"/>
+            <TextBlock Text="{Binding Name}" Foreground="#607780" VerticalAlignment="Center" TextWrapping="Wrap"/>
+           </DockPanel></DataTemplate></ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{Binding MerchantPrompt}" Foreground="#607780" Margin="0,4,0,6"/>
+          <DockPanel>
+           <Button Content="Добавить" DockPanel.Dock="Right" Tag="{Binding ElementName=MerchantInput}" Click="AddMerchant_Click" Margin="10,0,0,0"/>
+           <TextBox x:Name="MerchantInput" MaxLength="80"/>
+          </DockPanel>
+         </StackPanel>
+        </Expander>
+       </StackPanel>
+      </Border>
+     </DataTemplate>
+    </ItemsControl.ItemTemplate>
+   </ItemsControl>
+   <TextBlock x:Name="StatusText" Foreground="#607780" TextWrapping="Wrap" Margin="0,16,0,0"/>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>

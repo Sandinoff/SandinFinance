@@ -1,0 +1,17 @@
+<Window x:Class="SandinFinance.Desktop.DeleteAccountDialog"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Style="{StaticResource {x:Type Window}}" Title="Удаление счёта — SandinFinance"
+ Width="500" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+ <StackPanel Margin="28">
+  <TextBlock Text="Удалить счёт?" Style="{StaticResource DialogTitle}"/>
+  <TextBlock x:Name="AccountNameText" Style="{StaticResource SectionTitle}" TextWrapping="Wrap" Margin="0,20,0,8"/>
+  <TextBlock x:Name="BalanceText" Foreground="#607780" TextWrapping="Wrap" Margin="0,0,0,16"/>
+  <TextBlock Text="Счёт исчезнет из списка, итогов и выбора для операций. Его расходы и доходы больше не будут отображаться на Главной." TextWrapping="Wrap"/>
+  <TextBlock Text="История переводов и остатки других счетов сохранятся. История удалённого счёта останется в файле данных. Восстановление через приложение пока недоступно." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,24"/>
+  <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+   <Button x:Name="CancelButton" Content="Отмена" IsCancel="True" IsDefault="True" Margin="0,0,10,0"/>
+   <Button x:Name="DeleteButton" Content="Удалить счёт" Background="#C03939" BorderBrush="#C03939" Foreground="White" Click="Delete_Click"/>
+  </StackPanel>
+ </StackPanel>
+</Window>
