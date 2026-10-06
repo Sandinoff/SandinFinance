@@ -1,0 +1,27 @@
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Personal financial data and local backups
+/data/
+/backups/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+
+# Generated files
+/node_modules/
+/dist/
+/build/
+/.venv/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+Thumbs.db
