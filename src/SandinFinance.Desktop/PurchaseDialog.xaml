@@ -8,15 +8,15 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto">
    <StackPanel>
     <TextBlock Text="Покупка по кредитке" Style="{StaticResource DialogTitle}"/>
-    <TextBlock x:Name="AccountText" Foreground="#607780" TextWrapping="Wrap" Margin="0,6,0,20"/>
+    <TextBlock x:Name="AccountText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,20"/>
     <Label Content="Название покупки" Target="{Binding ElementName=NameInput}" Padding="0,0,0,6"/>
     <TextBox x:Name="NameInput" MaxLength="80"/>
     <Label Content="Сумма, ₽" Target="{Binding ElementName=AmountInput}" Padding="0,16,0,6"/>
     <TextBox x:Name="AmountInput" Text="0" MaxLength="32"/>
     <Label Content="Дата покупки" Target="{Binding ElementName=DateInput}" Padding="0,16,0,6"/>
     <DatePicker x:Name="DateInput" Padding="6"/>
-    <TextBlock Text="Покупка увеличивает долг карты. Не добавляйте сюда покупки, уже включённые в начальный долг. Погасить задолженность можно переводом на кредитку в разделе «Счета»." Foreground="#607780" TextWrapping="Wrap" Margin="0,16,0,0"/>
-    <TextBlock x:Name="ErrorText" Foreground="#A52828" TextWrapping="Wrap" Margin="0,12,0,0" AutomationProperties.LiveSetting="Assertive"/>
+    <TextBlock Text="Покупка увеличивает долг карты. Не добавляйте сюда покупки, уже включённые в начальный долг. Погасить задолженность можно переводом на кредитку в разделе «Счета»." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,16,0,0"/>
+    <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,12,0,0" AutomationProperties.LiveSetting="Assertive"/>
    </StackPanel>
   </ScrollViewer>
   <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">

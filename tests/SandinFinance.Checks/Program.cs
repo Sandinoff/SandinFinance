@@ -2,254 +2,8 @@ using SandinFinance.Core;
 
 try
 {
-if (args.Length == 5 && args[0] == "--configure-credit-month-cycle")
-{
-    var store = new AccountStore(args[1]);
-    var cardId = Guid.Parse(args[2]);
-    var since = DateTime.ParseExact(args[3], "yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
-    var payments = System.Text.Json.JsonSerializer.Deserialize<List<OpeningDebtPayment>>(System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(args[4]))) ?? throw new ArgumentException("Payments missing.");
-    var accounts = store.Load();
-    var card = accounts.Single(a => a.Id == cardId && a.IsCredit);
-    if (payments.Sum(p => p.Amount) != card.OpeningBalance) throw new ArgumentException("Statement amounts must match opening debt; no changes saved.");
-    var corrected = card with
-    {
-        GraceRule = GracePeriodRule.PurchaseMonthPlusThreeMonths, GraceDays = 120, StatementDay = 0, OpeningDebtPayments = payments,
-        Transactions = card.Transactions.Select(t => t.Kind == CategoryKind.Expense && t.OccurredAt >= since ? t with { CreditRule = GracePeriodRule.PurchaseMonthPlusThreeMonths, CreditGraceDays = 120, CreditStatementDay = 0 } : t).ToList(),
-        Purchases = card.Purchases.Select(p => p.Date >= DateOnly.FromDateTime(since) ? p with { Rule = GracePeriodRule.PurchaseMonthPlusThreeMonths, GraceDays = 120, StatementDay = 0 } : p).ToList()
-    };
-    corrected.Validate(); BudgetOperations.ValidateTimeline(corrected);
-    if (corrected.Debt != card.Debt || corrected.AvailableBalance != card.AvailableBalance) throw new InvalidOperationException("Financial amounts changed.");
-    var backup = Path.Combine(args[1], "backups", "before-credit-month-cycle-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup); File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    store.Save(accounts.Select(a => a.Id == cardId ? corrected : a).ToList());
-    foreach (var payment in corrected.PaymentSummaries) Console.WriteLine($"{payment.Heading}: {payment.Payments}");
-    Console.WriteLine($"Total debt: {Money.Format(corrected.Debt)}; bank available: {corrected.BalanceText}");
-    return;
-}
-if (args.Length == 5 && args[0] == "--shift-opening-deadline")
-{
-    var store = new AccountStore(args[1]);
-    var cardId = Guid.Parse(args[2]);
-    var from = DateOnly.ParseExact(args[3], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var to = DateOnly.ParseExact(args[4], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var accounts = store.Load();
-    var card = accounts.Single(a => a.Id == cardId && a.IsCredit);
-    var corrected = card with { OpeningDebtPayments = card.OpeningDebtPayments.Select(p => p.DueDate == from ? p with { DueDate = to } : p).ToList() };
-    corrected.Validate();
-    var backup = Path.Combine(args[1], "backups", "before-deadline-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    store.Save(accounts.Select(a => a.Id == cardId ? corrected : a).ToList());
-    foreach (var payment in corrected.PaymentSummaries) Console.WriteLine($"{payment.Heading}: {payment.Payments}");
-    return;
-}
-if (args.Length == 4 && args[0] == "--reconcile-credit-opening")
-{
-    var store = new AccountStore(args[1]);
-    var accountId = Guid.Parse(args[2]);
-    var target = decimal.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture);
-    Money.Validate(target, "Available bank balance");
-    var accounts = store.Load();
-    var account = accounts.Single(a => a.Id == accountId && a.IsCredit);
-    var corrected = account with { OpeningBalance = account.CreditLimit - target - account.Purchases.Sum(p => p.Amount) + account.TransactionDelta };
-    corrected.Validate();
-    BudgetOperations.ValidateTimeline(corrected);
-    if (corrected.AvailableBalance != target) throw new InvalidOperationException("Balance mismatch; no changes saved.");
-    var backup = Path.Combine(args[1], "backups", "before-credit-reconciliation-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    store.Save(accounts.Select(a => a.Id == accountId ? corrected : a).ToList());
-    if (store.Load().Single(a => a.Id == accountId).AvailableBalance != target) throw new InvalidOperationException("Saved balance mismatch.");
-    Console.WriteLine($"Opening debt at {corrected.OpeningDate:dd.MM.yyyy}: {Money.Format(corrected.OpeningBalance)}; available bank balance: {Money.Format(corrected.AvailableBalance)}");
-    return;
-}
-if (args.Length == 4 && args[0] == "--set-card-spending-limit")
-{
-    var store = new AccountStore(args[1]);
-    var profile = new ProfileStore(args[1]);
-    var cardId = Guid.Parse(args[2]);
-    var limit = decimal.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture);
-    var accounts = store.Load();
-    var card = accounts.Single(a => a.Id == cardId && a.IsCredit) with { MonthlySpendingLimit = limit };
-    card.Validate();
-    var backup = Path.Combine(args[1], "backups", "before-card-limit-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    File.Copy(profile.FilePath, Path.Combine(backup, "profile.json"));
-    store.Save(accounts.Select(a => a.Id == cardId ? card : a).ToList());
-    profile.SetBudget(0, null);
-    profile.SetBudgetDisplay(null);
-    var setupDate = DateOnly.FromDateTime(DateTime.Today);
-    var spent = BudgetStatistics.Calculate([card], [], CategoryKind.Expense, new(new(setupDate.Year, setupDate.Month, 1), setupDate)).Total;
-    Console.WriteLine($"Card monthly limit: {Money.Format(limit)}; spent: {Money.Format(spent)}; remaining: {Money.Format(limit - spent)}; bank availability: {card.BalanceText}");
-    foreach (var payment in card.PaymentSummaries) Console.WriteLine($"{payment.Heading}: {payment.Payments}");
-    return;
-}
-if (args.Length == 3 && args[0] == "--set-budget-display")
-{
-    var cardId = Guid.Parse(args[2]);
-    var store = new AccountStore(args[1]);
-    if (!store.Load().Any(a => a.Id == cardId && a.IsCredit)) throw new ArgumentException("Credit card not found.");
-    var profile = new ProfileStore(args[1]);
-    var backup = Path.Combine(args[1], "backups", "before-budget-display-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(profile.FilePath, Path.Combine(backup, "profile.json"));
-    profile.SetBudgetDisplay(cardId);
-    Console.WriteLine("Budget display configured; bank balance unchanged.");
-    return;
-}
-if (args.Length == 7 && args[0] == "--set-posted-interest-reconcile")
-{
-    var store = new AccountStore(args[1]);
-    var accountId = Guid.Parse(args[2]);
-    var postingDay = DateOnly.ParseExact(args[3], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var amount = decimal.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
-    var postingTime = TimeOnly.ParseExact(args[5], "HH:mm", System.Globalization.CultureInfo.InvariantCulture);
-    var target = decimal.Parse(args[6], System.Globalization.CultureInfo.InvariantCulture);
-    Money.Validate(amount, "Interest"); Money.Validate(target, "Balance");
-    if (postingDay.ToDateTime(postingTime) > DateTime.Now) throw new ArgumentException("Future posting.");
-    var accounts = store.Load();
-    var account = accounts.Single(a => a.Id == accountId && a.IsSavings);
-    var correction = account with
-    {
-        DailyInterestPostingTime = postingTime,
-        InterestCorrections = [.. account.InterestCorrections.Where(c => c.Date != postingDay).Select(c => c with { OccurredAt = c.OccurredAt ?? c.Date.ToDateTime(postingTime) }), new(postingDay, amount, postingDay.ToDateTime(postingTime))]
-    };
-    var reconciliationDate = DateOnly.FromDateTime(DateTime.Today);
-    correction = SavingsInterest.Recalculate(correction, reconciliationDate);
-    for (var attempt = 0; correction.CurrentBalance != target && attempt < 32; attempt++)
-        correction = SavingsInterest.Recalculate(correction with { OpeningBalance = correction.OpeningBalance + target - correction.CurrentBalance }, reconciliationDate);
-    if (correction.CurrentBalance != target) throw new ArgumentException("Could not reconcile exactly.");
-    var backup = Path.Combine(args[1], "backups", "before-posting-time-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    store.Save(accounts.Select(a => a.Id == accountId ? correction : a).ToList());
-    Console.WriteLine($"Posting {postingDay:dd.MM.yyyy} {postingTime:HH:mm}: {Money.Format(amount)}; opening: {Money.Format(correction.OpeningBalance)}; balance: {Money.Format(correction.CurrentBalance)}; interest total: {Money.Format(correction.CreditedInterest)}");
-    return;
-}
-if (args.Length == 5 && args[0] == "--reconcile-opening")
-{
-    var store = new AccountStore(args[1]);
-    var accountId = Guid.Parse(args[2]);
-    var target = decimal.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture);
-    var openingDate = DateOnly.ParseExact(args[4], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    Money.Validate(target, "Actual balance");
-    var accounts = store.Load();
-    var account = accounts.Single(a => a.Id == accountId && a.IsSavings);
-    if (account.OpeningDate != openingDate) throw new ArgumentException("Opening date does not match.");
-    var todayForReconciliation = DateOnly.FromDateTime(DateTime.Today);
-    var corrected = SavingsInterest.Recalculate(account, todayForReconciliation);
-    for (var attempt = 0; corrected.CurrentBalance != target && attempt < 32; attempt++)
-        corrected = SavingsInterest.Recalculate(corrected with { OpeningBalance = corrected.OpeningBalance + target - corrected.CurrentBalance }, todayForReconciliation);
-    if (corrected.CurrentBalance != target) throw new ArgumentException("Could not reconcile balance exactly; no changes saved.");
-    var backup = Path.Combine(args[1], "backups", "before-opening-reconciliation-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    store.Save(accounts.Select(a => a.Id == accountId ? corrected : a).ToList());
-    if (store.Load().Single(a => a.Id == accountId).CurrentBalance != target) throw new InvalidOperationException("Saved balance mismatch.");
-    Console.WriteLine($"Opening balance at {openingDate:dd.MM.yyyy}: {Money.Format(corrected.OpeningBalance)}; current balance: {Money.Format(corrected.CurrentBalance)}");
-    return;
-}
-if (args.Length == 6 && args[0] == "--move-interest-remove-duplicate")
-{
-    var store = new AccountStore(args[1]);
-    var accountId = Guid.Parse(args[2]);
-    var duplicateId = Guid.Parse(args[3]);
-    var day = DateOnly.ParseExact(args[4], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var timestamp = DateTime.ParseExact(args[5], "yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
-    var accounts = store.Load();
-    var account = accounts.Single(a => a.Id == accountId && a.IsSavings);
-    if (timestamp > DateTime.Now || DateOnly.FromDateTime(timestamp) < account.OpeningDate) throw new ArgumentException("Invalid interest timestamp.");
-    var accrual = SavingsInterest.History(account, DateOnly.FromDateTime(DateTime.Today)).Single(a => a.Date == day);
-    var duplicate = account.Transactions.SingleOrDefault(t => t.Id == duplicateId);
-    if (duplicate is not null && (duplicate.IsTransfer || duplicate.Kind != CategoryKind.Income || duplicate.Amount != accrual.Amount)) throw new ArgumentException("Duplicate does not match interest income.");
-    var corrected = SavingsInterest.Recalculate(account with
-    {
-        Transactions = account.Transactions.Where(t => t.Id != duplicateId).ToList(),
-        InterestCorrections = [.. account.InterestCorrections.Where(c => c.Date != day), new(day, accrual.Amount, timestamp)]
-    }, DateOnly.FromDateTime(DateTime.Today));
-    var backup = Path.Combine(args[1], "backups", "before-interest-move-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    File.Copy(store.FilePath, Path.Combine(backup, "accounts.json"));
-    store.Save(accounts.Select(a => a.Id == accountId ? corrected : a).ToList());
-    Console.WriteLine($"Original interest: {Money.Format(accrual.Amount)} at {timestamp:dd.MM.yyyy HH:mm}; duplicate removed: {duplicate is not null}");
-    return;
-}
-if (args.Length == 6 && args[0] == "--add-income")
-{
-    var store = new AccountStore(args[1]);
-    var catalog = new CategoryStore(args[1]);
-    var accountId = Guid.Parse(args[2]);
-    var amount = decimal.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture);
-    var timestamp = DateTime.ParseExact(args[4], "yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
-    var account = store.Load().Single(a => a.Id == accountId);
-    if (account.Transactions.Any(t => t.Kind == CategoryKind.Income && !t.IsTransfer && t.Amount == amount && t.OccurredAt == timestamp && t.CategoryName == args[5]))
-    {
-        Console.WriteLine("Matching income already exists; no duplicate added.");
-        return;
-    }
-    var backup = Path.Combine(args[1], "backups", "before-income-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    foreach (var file in new[] { "accounts.json", "categories.json", "profile.json" })
-        if (File.Exists(Path.Combine(args[1], file))) File.Copy(Path.Combine(args[1], file), Path.Combine(backup, file));
-    var categories = catalog.Load();
-    var category = categories.SingleOrDefault(c => c.Kind == CategoryKind.Income && c.Name == args[5]);
-    if (category is null)
-    {
-        category = new Category { Name = args[5], Kind = CategoryKind.Income, IconKey = "interest" };
-        catalog.Save([.. categories, category]);
-    }
-    var income = BudgetOperations.Add(store, catalog, accountId, category.Id, CategoryKind.Income, amount, timestamp, "");
-    Console.WriteLine($"Income saved: {income.Id}; amount: {Money.Format(income.Amount)}; date: {income.OccurredAt:dd.MM.yyyy HH:mm}");
-    return;
-}
-if (args.Length == 9 && args[0] == "--apply-finance-settings")
-{
-    var store = new AccountStore(args[1]);
-    var profile = new ProfileStore(args[1]);
-    var accounts = store.Load();
-    var sber = accounts.Single(a => a.Id == Guid.Parse(args[2]) && a.IsCredit);
-    var paymentAmount = decimal.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture);
-    var due = DateOnly.ParseExact(args[4], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var tinkoff = accounts.Single(a => a.Id == Guid.Parse(args[5]) && a.IsCredit);
-    var statementDay = int.Parse(args[6]);
-    var budget = decimal.Parse(args[7], System.Globalization.CultureInfo.InvariantCulture);
-    Guid? budgetAccountId = args[8] == "all" ? null : Guid.Parse(args[8]);
-    (profile.Load() with { MonthlyBudget = budget, BudgetAccountId = budgetAccountId }).Validate();
-    var updated = accounts.Select(a => a.Id == sber.Id ? a with { OpeningDebtPayments = [.. a.OpeningDebtPayments.Where(p => p.DueDate != due), new(due, paymentAmount)] }
-        : a.Id == tinkoff.Id ? a with
-        {
-            GraceRule = GracePeriodRule.StatementMonthEnd, StatementDay = statementDay,
-            Transactions = a.Transactions.Select(t => t.Kind == CategoryKind.Expense ? t with { CreditRule = GracePeriodRule.StatementMonthEnd, CreditStatementDay = statementDay, CreditGraceDays = a.GraceDays } : t).ToList(),
-            Purchases = a.Purchases.Select(p => p with { Rule = GracePeriodRule.StatementMonthEnd, StatementDay = statementDay }).ToList()
-        } : a).ToList();
-    foreach (var account in updated) account.Validate();
-    var backup = Path.Combine(args[1], "backups", "before-budget-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-    Directory.CreateDirectory(backup);
-    foreach (var file in new[] { "accounts.json", "categories.json", "profile.json" })
-        if (File.Exists(Path.Combine(args[1], file))) File.Copy(Path.Combine(args[1], file), Path.Combine(backup, file));
-    store.Save(updated);
-    profile.SetBudget(budget, budgetAccountId);
-    var setupToday = DateOnly.FromDateTime(DateTime.Today);
-    var spent = BudgetStatistics.Calculate(store.Load().Where(a => budgetAccountId is null || a.Id == budgetAccountId), new CategoryStore(args[1]).Load(), CategoryKind.Expense, new(new(setupToday.Year, setupToday.Month, 1), setupToday)).Total;
-    Console.WriteLine($"Budget: {Money.Format(budget)}; spent: {Money.Format(spent)}; remaining: {Money.Format(budget - spent)}");
-    Console.WriteLine("Opening balances unchanged. Backup: " + backup);
-    return;
-}
-if (args.Length == 3 && args[0] == "--initialize-profile")
-{
-    var profileStore = ProfileStore.Initialize(args[1], args[2]);
-    var pin = Console.ReadLine() ?? throw new ArgumentException("Не получен PIN через стандартный ввод.");
-    if (profileStore.Load().HasPin)
-    {
-        if (!profileStore.VerifyPin(pin)) throw new ArgumentException("PIN существующего профиля не совпадает.");
-    }
-    else profileStore.SetInitialPin(pin);
-    Console.WriteLine("Профиль Sandin подготовлен. PIN установлен без вывода кода.");
-    return;
-}
 var passed = 0;
-var root = Path.Combine(Directory.GetCurrentDirectory(), "data", "checks", Guid.NewGuid().ToString("N"));
+var root = Path.Combine(Directory.GetCurrentDirectory(), ".local", "checks", Guid.NewGuid().ToString("N"));
 var today = DateOnly.FromDateTime(DateTime.Today);
 Account Cash(string name = "Наличные", decimal amount = 5000.50m) =>
     new() { Name = name, Type = AccountType.Cash, OpeningBalance = amount, OpeningDate = today };
@@ -289,7 +43,7 @@ Check("Saving and reopening preserves all four types and kopecks", () =>
     store.Save(accounts);
     Assert(System.Text.Json.JsonSerializer.Serialize(new AccountStore(Path.GetDirectoryName(store.FilePath)!).Load()) == System.Text.Json.JsonSerializer.Serialize(accounts));
     store.Save([.. accounts, Cash("Вторая наличность", 1)]);
-    Assert(store.Load().Count == 5 && File.Exists(store.FilePath + ".bak"));
+    Assert(store.Load().Count == 5 && File.Exists(store.BackupPath));
     Assert(!File.Exists(store.FilePath + ".tmp"));
 });
 Check("Duplicate account names are rejected without overwriting data", () =>
@@ -358,7 +112,7 @@ Check("Version 1 accounts migrate without losing opening balances or identities"
     var bytes = File.ReadAllText(store.FilePath);
     store.LoadAndAccrue(today);
     Assert(bytes == File.ReadAllText(store.FilePath));
-    Assert(File.ReadAllText(store.FilePath + ".bak").Contains("\"Version\":1"));
+    Assert(File.ReadAllText(store.BackupPath).Contains("\"Version\":1"));
 });
 Check("All purchases in a month share one due date based on the month closing", () =>
 {
@@ -403,7 +157,7 @@ Check("Version 2 installment settings upgrade to a single monthly payment withou
     Assert(upgraded.Id == oldCard.Id && upgraded.Debt == oldCard.Debt && upgraded.CreditLimit == oldCard.CreditLimit);
     Assert(upgraded.GraceRule == GracePeriodRule.MonthEndPlusDays && upgraded.PaymentParts == 1);
     Assert(upgraded.Purchases.Single().Id == oldPurchase.Id && CreditGrace.Schedule(upgraded.Purchases.Single()).Count == 1);
-    Assert(File.Exists(store.FilePath + ".bak") && File.ReadAllText(store.FilePath).Contains("\"Version\": 8"));
+    Assert(File.Exists(store.BackupPath) && File.ReadAllText(store.FilePath).Contains("\"Version\": 8"));
 });
 Check("Credit card primary amount is the available balance, without changing financial totals", () =>
 {
@@ -446,7 +200,7 @@ Check("Expense and income categories persist colors, icons and merchant identiti
     Assert(loaded.Count == 2 && loaded[0].Id == expense.Id && loaded[0].Merchants.Single().Id == merchant.Id);
     Assert(loaded[0].ColorHex == "#2478A8" && loaded[0].IconKey == "food" && loaded[1].Kind == CategoryKind.Income);
     store.Save([expense with { Name = "Питание", ColorHex = "#BC4545" }, income]);
-    Assert(store.Load()[0].Merchants.Single().Id == merchant.Id && File.Exists(store.FilePath + ".bak"));
+    Assert(store.Load()[0].Merchants.Single().Id == merchant.Id && File.Exists(store.BackupPath));
     Assert(File.ReadAllText(accountStore.FilePath) == accountBytes);
 });
 Check("Invalid categories and duplicate merchants do not overwrite saved data", () =>
@@ -717,14 +471,14 @@ Check("Account deletion preserves linked transfers and surviving balances across
     var sender = Cash("Sender", 1000);
     var recipient = Cash("Recipient", 200);
     store.Save([sender, recipient]);
-    AccountTransfers.Add(store, sender.Id, recipient.Id, 100, DateTime.Today.AddHours(1));
+    AccountTransfers.Add(store, sender.Id, recipient.Id, 100, DateTime.Now);
     var before = store.Load().Single(a => a.Id == recipient.Id);
     Assert(store.Delete(sender.Id).Id == sender.Id);
     var survivors = store.Load();
     Assert(survivors.Count == 1 && survivors[0].CurrentBalance == before.CurrentBalance && survivors[0].Transactions.Single().IsTransfer);
     var replacement = Cash("Sender", 500);
     store.Save([.. survivors, replacement]);
-    AccountTransfers.Add(store, recipient.Id, replacement.Id, 50, DateTime.Today.AddHours(2));
+    AccountTransfers.Add(store, recipient.Id, replacement.Id, 50, DateTime.Now);
     Assert(store.Load().Single(a => a.Id == recipient.Id).CurrentBalance == 250);
     Assert(File.ReadAllText(store.FilePath).Contains("DeletedAccounts"));
     var bytes = File.ReadAllText(store.FilePath);
@@ -913,16 +667,17 @@ Check("Interest posting timestamps preserve the calculation day and remain edita
 });
 Check("Daily bank interest posts at 01:00 under the posting day's date exactly once", () =>
 {
-    var start = today.AddDays(-2);
+    var postingDay = today.AddDays(-2);
+    var start = postingDay.AddDays(-2);
     var account = SavingsInterest.EnsureHistory(Cash("Posting at 01", 1000) with
     {
         Type = AccountType.Savings, OpeningDate = start, InterestAsOf = start, AnnualInterestRate = 36.5m,
         DailyInterestPostingTime = new TimeOnly(1, 0),
-        InterestCorrections = [new(start, 0.50m, start.ToDateTime(new TimeOnly(2, 32))), new(start.AddDays(1), 1, start.AddDays(1).ToDateTime(new TimeOnly(1, 0))), new(today, 1, today.ToDateTime(new TimeOnly(1, 0)))]
+        InterestCorrections = [new(start, 0.50m, start.ToDateTime(new TimeOnly(2, 32))), new(start.AddDays(1), 1, start.AddDays(1).ToDateTime(new TimeOnly(1, 0))), new(postingDay, 1, postingDay.ToDateTime(new TimeOnly(1, 0)))]
     });
-    account = SavingsInterest.Recalculate(account, today);
+    account = SavingsInterest.Recalculate(account, postingDay);
     Assert(account.CurrentBalance == 1002.50m);
-    var tomorrow = today.AddDays(1);
+    var tomorrow = postingDay.AddDays(1);
     var before = SavingsInterest.Accrue(account, tomorrow, tomorrow.ToDateTime(new TimeOnly(0, 59)));
     Assert(before.CurrentBalance == account.CurrentBalance);
     var after = SavingsInterest.Accrue(account, tomorrow, tomorrow.ToDateTime(new TimeOnly(1, 0)));
@@ -954,6 +709,53 @@ Check("Sber purchase month plus three months groups October spending into Januar
     Assert(store.Load()[0].PaymentSummaries.Last().Payments == Money.Format(250));
     BudgetOperations.DeleteExpense(store, card.Id, expense.Id);
     Assert(store.Load()[0].PaymentSummaries.Count() == 2 && store.Load()[0].Debt == 1800);
+});
+Check("Profile layout migrates flat financial files and backups without changing contents or PIN", () =>
+{
+    var directory = Path.Combine(root, "layout-migration");
+    var store = new AccountStore(directory); store.Save([Cash("Cash", 1234.50m)]);
+    var categories = new CategoryStore(directory); categories.Save([new Category { Name = "Food" }]);
+    var profile = ProfileStore.Initialize(directory); profile.SetInitialPin("2468");
+    var original = File.ReadAllBytes(store.FilePath);
+    File.Move(store.FilePath, Path.Combine(directory, "accounts.json"));
+    File.Move(categories.FilePath, Path.Combine(directory, "categories.json"));
+    Directory.CreateDirectory(Path.Combine(directory, "backups", "old-snapshot"));
+    File.WriteAllText(Path.Combine(directory, "backups", "old-snapshot", "note.txt"), "saved");
+    var migrated = ProfileStore.Initialize(directory);
+    Assert(migrated.VerifyPin("2468") && File.ReadAllBytes(store.FilePath).SequenceEqual(original));
+    Assert(!File.Exists(Path.Combine(directory, "accounts.json")) && File.Exists(Path.Combine(ProfileLayout.ManualBackups(directory), "old-snapshot", "note.txt")));
+    Assert(File.Exists(ProfileLayout.AutomaticBackup(directory, "profile.json")));
+    store.Save(store.Load());
+    Assert(File.Exists(store.BackupPath) && !File.Exists(store.FilePath + ".bak"));
+    File.WriteAllText(Path.Combine(directory, "accounts.json"), "different");
+    Reject<System.IO.IOException>(() => ProfileLayout.Migrate(directory));
+    Assert(File.ReadAllBytes(store.FilePath).SequenceEqual(original) && File.ReadAllText(Path.Combine(directory, "accounts.json")) == "different");
+});
+Check("Excel export stores numeric amounts and dates, excludes transfers, and escapes user text", () =>
+{
+    var directory = Path.Combine(root, "excel-export"); Directory.CreateDirectory(directory);
+    var store = new AccountStore(directory); var catalog = new CategoryStore(directory);
+    var cash = Cash("Cash", 5000); var other = Cash("Other", 1000);
+    var food = new Category { Name = "Продукты" }; catalog.Save([food]); store.Save([cash, other]);
+    BudgetOperations.Add(store, catalog, cash.Id, food.Id, CategoryKind.Expense, 1250.50m, DateTime.Today.AddMinutes(1), "=2+2 & магазин");
+    AccountTransfers.Add(store, cash.Id, other.Id, 500, DateTime.Today.AddMinutes(2));
+    var before = File.ReadAllBytes(store.FilePath);
+    var path = Path.Combine(directory, "expenses.xlsx");
+    Assert(ExpenseExcelExporter.Export(path, store.Load(), catalog.Load()) == 1);
+    using (var zip = System.IO.Compression.ZipFile.OpenRead(path))
+    {
+        System.Xml.Linq.XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        using var stream = zip.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        var sheet = System.Xml.Linq.XDocument.Load(stream);
+        System.Xml.Linq.XElement Cell(string address) => sheet.Descendants(ns + "c").Single(c => (string?)c.Attribute("r") == address);
+        Assert(Cell("F6").Element(ns + "v")!.Value == "1250.50" && Cell("F3").Element(ns + "f")!.Value == "SUM(F6:F6)");
+        Assert(Cell("E6").Attribute("t")!.Value == "inlineStr" && Cell("E6").Descendants(ns + "t").Single().Value == "=2+2 & магазин");
+        Assert(Cell("A6").Attribute("t") is null && Cell("B6").Attribute("t") is null && zip.GetEntry("xl/tables/table1.xml") is not null);
+    }
+    Assert(File.ReadAllBytes(store.FilePath).SequenceEqual(before));
+    Assert(ExpenseExcelExporter.Export(path, [], []) == 0 && !Directory.GetFiles(directory, "*.tmp").Any());
+    ExpenseExcelExporter.Export(path, store.Load(), catalog.Load());
+    Console.WriteLine("Excel sample: " + path);
 });
 Console.WriteLine($"Passed: {passed}/{passed} checks.");
 

@@ -1,0 +1,10 @@
+<Window x:Class="SandinFinance.Desktop.MerchantIconPicker" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Style="{StaticResource {x:Type Window}}" Title="Иконка магазина — SandinFinance" Width="520" Height="560" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+ <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <StackPanel><TextBlock Text="Иконка магазина" Style="{StaticResource DialogTitle}"/><TextBlock Text="Выберите готовую иконку или загрузите свою PNG" Foreground="{DynamicResource MutedText}" Margin="0,8,0,16" TextWrapping="Wrap"/></StackPanel>
+  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="IconsList"><ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate>
+   <Button Click="Choose_Click" Padding="10" Margin="4"><StackPanel><Image Source="{Binding PngIconBase64, Converter={StaticResource PngIcon}}" Width="44" Height="44" Stretch="Uniform"/><TextBlock Text="{Binding Name}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0"/></StackPanel></Button>
+  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+  <StackPanel Grid.Row="2" Margin="0,16,0,0"><TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,0,0,8"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="Отмена" IsCancel="True" Margin="0,0,10,0"/><Button Content="Загрузить PNG…" Style="{StaticResource PrimaryButton}" Click="Import_Click"/></StackPanel></StackPanel>
+ </Grid>
+</Window>

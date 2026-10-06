@@ -9,7 +9,7 @@
  <ScrollViewer VerticalScrollBarVisibility="Auto">
   <StackPanel Margin="28">
    <TextBlock x:Name="HeadingText" Text="Новый счёт" Style="{StaticResource DialogTitle}"/>
-   <TextBlock x:Name="IntroText" Text="Укажите сумму, с которой начнётся учёт." Foreground="#607780" Margin="0,6,0,22" TextWrapping="Wrap"/>
+   <TextBlock x:Name="IntroText" Text="Укажите сумму, с которой начнётся учёт." Foreground="{DynamicResource MutedText}" Margin="0,6,0,22" TextWrapping="Wrap"/>
    <Label Content="Название" Target="{Binding ElementName=NameInput}" Padding="0,0,0,6"/>
    <TextBox x:Name="NameInput" MaxLength="80" AutomationProperties.AutomationId="AccountName"/>
    <Label Content="Тип счёта" Target="{Binding ElementName=TypeInput}" Padding="0,16,0,6"/>
@@ -23,7 +23,7 @@
     <TextBox x:Name="LimitInput" Text="0" MaxLength="32" AutomationProperties.AutomationId="CreditLimit"/>
     <Label Content="Лимит трат в месяц, ₽ (0 — без лимита)" Padding="0,16,0,6"/>
     <TextBox x:Name="SpendingLimitInput" Text="0" MaxLength="32"/>
-    <TextBlock Text="Учитываются только расходы с этой кредитки с 1-го числа месяца. Остаток лимита показывается крупно, полный остаток карты — ниже." Foreground="#607780" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    <TextBlock Text="Учитываются только расходы с этой кредитки с 1-го числа месяца. Остаток лимита показывается крупно, полный остаток карты — ниже." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
     <Label Content="Беспроцентный период, дней" Target="{Binding ElementName=GraceDaysInput}" Padding="0,16,0,6"/>
     <TextBox x:Name="GraceDaysInput" Text="0" MaxLength="3"/>
     <Label Content="Правило погашения покупок" Target="{Binding ElementName=GraceRuleInput}" Padding="0,16,0,6"/>
@@ -40,7 +40,7 @@
     <TextBox x:Name="OpeningPaymentInput" Text="0" MaxLength="32"/>
     <Label Content="Погасить начальный долг к дате" Padding="0,16,0,6"/>
     <DatePicker x:Name="OpeningPaymentDateInput" Padding="6"/>
-    <TextBlock Text="Настройки применяются к новым покупкам. Начальный долг не имеет графика, поскольку даты покупок неизвестны." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    <TextBlock Text="Настройки применяются к новым покупкам. Начальный долг не имеет графика, поскольку даты покупок неизвестны." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,12,0,0"/>
    </StackPanel>
    <StackPanel x:Name="SavingsFields" Visibility="Collapsed">
     <Label Content="Годовая процентная ставка, %" Target="{Binding ElementName=RateInput}" Padding="0,16,0,6"/>
@@ -50,12 +50,12 @@
      <ComboBoxItem Content="Ежедневно, с капитализацией"/>
      <ComboBoxItem Content="В конце месяца"/>
     </ComboBox>
-    <TextBlock Text="Расчёт за завершённые дни: остаток × ставка / 100 / 365 (366). Пропущенные дни учитываются при запуске. Изменение ставки действует с сегодняшнего дня. При смене способа выплаты ожидающие проценты зачисляются." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    <TextBlock Text="Расчёт за завершённые дни: остаток × ставка / 100 / 365 (366). Пропущенные дни учитываются при запуске. Изменение ставки действует с сегодняшнего дня. При смене способа выплаты ожидающие проценты зачисляются." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,12,0,0"/>
    </StackPanel>
    <Label Content="Дата начала учёта" Target="{Binding ElementName=DateInput}" Padding="0,16,0,6"/>
    <DatePicker x:Name="DateInput" Padding="6" AutomationProperties.AutomationId="OpeningDate"/>
-   <TextBlock x:Name="HintText" Text="Начальная сумма не считается доходом." Foreground="#607780" TextWrapping="Wrap" Margin="0,16,0,0"/>
-   <TextBlock x:Name="ErrorText" Foreground="#A52828" TextWrapping="Wrap" Margin="0,12,0,12" AutomationProperties.LiveSetting="Assertive"/>
+   <TextBlock x:Name="HintText" Text="Начальная сумма не считается доходом." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,16,0,0"/>
+   <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,12,0,12" AutomationProperties.LiveSetting="Assertive"/>
   </StackPanel>
  </ScrollViewer>
    <StackPanel Grid.Row="1" Margin="28,12,28,22" Orientation="Horizontal" HorizontalAlignment="Right">

@@ -13,7 +13,7 @@ internal static class Program
     {
         try
         {
-            var root = Path.Combine(Directory.GetCurrentDirectory(), "data", "ui-checks", Guid.NewGuid().ToString("N"));
+            var root = Path.Combine(Directory.GetCurrentDirectory(), ".local", "ui-checks", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
             var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             app.InitializeComponent();
@@ -89,6 +89,7 @@ internal static class Program
             CheckExpenseEdit(root, app);
             CheckFinanceUpdates(root, app);
             CheckBudgetCardDisplay(root, app);
+            CheckMerchantLibrary(root, app);
             var badDirectory = Path.Combine(root, "corrupt");
             Directory.CreateDirectory(badDirectory);
             File.WriteAllText(Path.Combine(badDirectory, "accounts.json"), "broken json");
@@ -137,14 +138,28 @@ internal static class Program
         app.MainWindow = window;
         window.Show();
         Assert(((TextBlock)window.FindName("ProfileNameText")).Text == "Sandin" && window.Icon is not null, "Profile name replaces footer quote and icon is applied");
+        foreach (var weight in new[] { FontWeights.Normal, FontWeights.SemiBold, FontWeights.Bold })
+        {
+            var typeface = new Typeface(window.FontFamily, FontStyles.Normal, weight, FontStretches.Normal);
+            Assert(typeface.TryGetGlyphTypeface(out var glyphs) && glyphs.Weight == weight && glyphs.CharacterToGlyphMap.ContainsKey(0x0416) && glyphs.CharacterToGlyphMap.ContainsKey(0x0451), "Embedded font resolves Cyrillic in every UI weight");
+        }
         RunDialog<ProfileSettingsWindow>(window, () =>
         {
             var profileButton = (Button)window.FindName("ProfileButton");
             profileButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert(profileButton.ContextMenu.IsOpen, "Clicking the profile opens the dropdown");
+            profileButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert(!profileButton.ContextMenu.IsOpen, "Clicking the profile again closes the dropdown");
+            profileButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            profileButton.ContextMenu.UpdateLayout();
+            CaptureElement(profileButton.ContextMenu, Path.Combine(root, "profile-menu.png"));
             ((MenuItem)profileButton.ContextMenu.Items[0]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         }, settings =>
         {
+            Assert(!((Button)window.FindName("ProfileButton")).ContextMenu.IsOpen, "Selecting settings closes the dropdown");
             Assert(((TextBox)settings.FindName("DirectoryText")).Text == store.DirectoryPath, "Settings show actual profile folder");
+            Assert(((Button)settings.FindName("ExportButton")).Content as string == "Экспортировать в Excel", "Settings offer Excel export");
+            Assert(settings.ExportExpenses(Path.Combine(root, "settings-expenses.xlsx")) == 0, "Settings export can create an empty expense workbook without PIN data");
             Capture(settings, Path.Combine(root, "profile-settings.png"));
             Exception? failure = null;
             settings.Dispatcher.BeginInvoke(new Action(() =>
@@ -378,6 +393,23 @@ internal static class Program
         encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
         using var file = File.Create(path);
         encoder.Save(file);
+    }
+
+    private static void CheckMerchantLibrary(string root, App app)
+    {
+        Assert(MerchantIconCatalog.Choices.Count == 10, "All supplied merchant PNG icons are embedded");
+        foreach (var icon in MerchantIconCatalog.Choices) PngIcon.Validate(Convert.FromBase64String(icon.PngIconBase64));
+        Assert(MerchantIconCatalog.ForName("Пятерочка") == MerchantIconCatalog.ForName("Пятёрочка") && MerchantIconCatalog.ForName("Красное&Белое") is not null, "Brand aliases resolve automatic merchant icons");
+        var converted = new PngIconConverter().Convert(new Merchant { Name = "SPAR" }, typeof(System.Windows.Media.ImageSource), null!, System.Globalization.CultureInfo.InvariantCulture);
+        Assert(converted is BitmapImage, "Merchant badge uses bundled icon by name");
+        var owner = new MainWindow(root); app.MainWindow = owner; owner.Show();
+        RunDialog<MerchantIconPicker>(owner, () => new MerchantIconPicker { Owner = owner }.ShowDialog(), picker =>
+        {
+            Assert(((ItemsControl)picker.FindName("IconsList")).Items.Count == 10, "Gallery lists bundled icons");
+            Capture(picker, Path.Combine(root, "merchant-icon-gallery.png"));
+            picker.Close();
+        });
+        owner.Close();
     }
 
     private static void CheckAccountDeletion(string root, App app)
@@ -844,7 +876,9 @@ internal static class Program
         throw new InvalidOperationException("Save button not found.");
     }
 
-    private static void Capture(Window window, string path)
+    private static void Capture(Window window, string path) => CaptureElement(window, path);
+
+    private static void CaptureElement(FrameworkElement window, string path)
     {
         window.UpdateLayout();
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

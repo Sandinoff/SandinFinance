@@ -10,7 +10,7 @@
     <TextBlock x:Name="HeadingText" Text="Новый расход" Style="{StaticResource DialogTitle}" Margin="0,0,0,20"/>
     <Label x:Name="AccountLabel" Content="С какого счёта списать" Target="{Binding ElementName=AccountInput}" Padding="0,0,0,6"/>
     <ComboBox x:Name="AccountInput" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Account_Changed"/>
-    <TextBlock x:Name="BalanceText" Foreground="#607780" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    <TextBlock x:Name="BalanceText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
     <Label Content="Сумма, ₽" Target="{Binding ElementName=AmountInput}" Padding="0,18,0,6"/>
     <TextBox x:Name="AmountInput" MaxLength="32" TextChanged="Input_Changed"/>
     <Label Content="Категория" Target="{Binding ElementName=CategoryInput}" Padding="0,16,0,6"/>
@@ -26,7 +26,7 @@
      <StackPanel Margin="0,0,16,0"><Label Content="Дата" Target="{Binding ElementName=DateInput}" Padding="0,0,0,6"/><DatePicker x:Name="DateInput" Padding="6" SelectedDateChanged="Input_Changed"/></StackPanel>
      <StackPanel Grid.Column="1"><Label Content="Время" Target="{Binding ElementName=TimeInput}" Padding="0,0,0,6"/><TextBox x:Name="TimeInput" MaxLength="5" TextChanged="Input_Changed" ToolTip="Часы и минуты, например 14:30"/></StackPanel>
     </Grid>
-    <TextBlock x:Name="ErrorText" Foreground="#A52828" TextWrapping="Wrap" Margin="0,16,0,0" AutomationProperties.LiveSetting="Assertive"/>
+    <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,16,0,0" AutomationProperties.LiveSetting="Assertive"/>
    </StackPanel>
   </ScrollViewer>
   <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="28,12,28,22">

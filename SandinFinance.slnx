@@ -7,4 +7,7 @@
     <Project Path="tests/SandinFinance.Checks/SandinFinance.Checks.csproj" />
     <Project Path="tests/SandinFinance.UiChecks/SandinFinance.UiChecks.csproj" />
   </Folder>
+  <Folder Name="/scripts/">
+    <Project Path="scripts/SandinFinance.Maintenance/SandinFinance.Maintenance.csproj" />
+  </Folder>
 </Solution>

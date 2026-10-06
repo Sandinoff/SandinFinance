@@ -7,6 +7,7 @@
 
 # Personal financial data and local backups
 /data/
+/.local/
 /backups/
 **/profile.json
 **/profile.json.*

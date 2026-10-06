@@ -11,7 +11,8 @@ public sealed class AccountStore(string directory)
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
     };
-    public string FilePath { get; } = Path.Combine(Path.GetFullPath(directory), "accounts.json");
+    public string FilePath { get; } = ProfileLayout.DataFile(directory, "accounts.json");
+    public string BackupPath { get; } = ProfileLayout.AutomaticBackup(directory, "accounts.json");
 
     public List<Account> Load()
     {
@@ -22,8 +23,9 @@ public sealed class AccountStore(string directory)
 
     private StoreDocument ReadDocument()
     {
-        if (!File.Exists(FilePath)) return new StoreDocument(8, [], []);
-        var document = JsonSerializer.Deserialize<StoreDocument>(File.ReadAllText(FilePath), Options)
+        var source = ProfileLayout.ReadFile(directory, "accounts.json");
+        if (!File.Exists(source)) return new StoreDocument(8, [], []);
+        var document = JsonSerializer.Deserialize<StoreDocument>(File.ReadAllText(source), Options)
             ?? throw new InvalidDataException("Файл счетов пуст.");
         if (document.Version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8) || document.Accounts is null || (document.Version >= 6 && document.DeletedAccounts is null))
             throw new InvalidDataException("Неподдерживаемый формат файла счетов.");
@@ -59,7 +61,8 @@ public sealed class AccountStore(string directory)
                 JsonSerializer.Serialize(stream, new StoreDocument(8, accounts.ToList(), deleted.ToList()), Options);
                 stream.Flush(flushToDisk: true);
             }
-            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, FilePath + ".bak");
+            Directory.CreateDirectory(Path.GetDirectoryName(BackupPath)!);
+            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, BackupPath);
             else File.Move(temporary, FilePath);
             loadedVersion = 8;
         }

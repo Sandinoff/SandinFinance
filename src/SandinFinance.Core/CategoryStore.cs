@@ -10,12 +10,14 @@ public sealed class CategoryStore(string directory)
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
     };
-    public string FilePath { get; } = Path.Combine(Path.GetFullPath(directory), "categories.json");
+    public string FilePath { get; } = ProfileLayout.DataFile(directory, "categories.json");
+    public string BackupPath { get; } = ProfileLayout.AutomaticBackup(directory, "categories.json");
 
     public List<Category> Load()
     {
-        if (!File.Exists(FilePath)) return [];
-        var document = JsonSerializer.Deserialize<CategoryDocument>(File.ReadAllText(FilePath), Options)
+        var source = ProfileLayout.ReadFile(directory, "categories.json");
+        if (!File.Exists(source)) return [];
+        var document = JsonSerializer.Deserialize<CategoryDocument>(File.ReadAllText(source), Options)
             ?? throw new InvalidDataException("Файл категорий пуст.");
         if (document.Version is not (1 or 2) || document.Categories is null)
             throw new InvalidDataException("Неподдерживаемый формат категорий.");
@@ -35,7 +37,8 @@ public sealed class CategoryStore(string directory)
                 JsonSerializer.Serialize(stream, new CategoryDocument(2, categories.ToList()), Options);
                 stream.Flush(flushToDisk: true);
             }
-            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, FilePath + ".bak");
+            Directory.CreateDirectory(Path.GetDirectoryName(BackupPath)!);
+            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, BackupPath);
             else File.Move(temporary, FilePath);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }

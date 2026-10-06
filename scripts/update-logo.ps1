@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationCore, WindowsBase
-$logoPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../SandinFinance.png'))
-$assetDirectory = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../src/SandinFinance.Desktop/Assets'))
+$logoPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../assets/branding/SandinFinance.png'))
+$assetDirectory = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../assets/branding'))
 New-Item -ItemType Directory -Path $assetDirectory -Force | Out-Null
 $imageStream = [System.IO.MemoryStream]::new([System.IO.File]::ReadAllBytes($logoPath))
 $decoder = [System.Windows.Media.Imaging.BitmapDecoder]::Create($imageStream, [System.Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat, [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad)

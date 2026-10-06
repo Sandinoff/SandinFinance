@@ -6,12 +6,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>Assets/SandinFinance.ico</ApplicationIcon>
+    <ApplicationIcon>../../assets/branding/SandinFinance.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../SandinFinance.Core/SandinFinance.Core.csproj" />
-    <Resource Include="../../SandinFinance.png" Link="Assets/SandinFinance.png" />
-    <Resource Include="Assets/SandinFinance.ico" />
+    <Resource Include="../../assets/branding/SandinFinance.png" Link="Assets/SandinFinance.png" />
+    <Resource Include="../../assets/branding/SandinFinance.ico" Link="Assets/SandinFinance.ico" />
+    <Resource Include="../../assets/merchant-icons/*.png" Link="Assets/MerchantIcons/%(Filename)%(Extension)" />
+    <Resource Include="../../assets/fonts/manrope/Manrope-Regular.ttf" Link="Assets/Fonts/Manrope-Regular.ttf" />
+    <Resource Include="../../assets/fonts/manrope/Manrope-SemiBold.ttf" Link="Assets/Fonts/Manrope-SemiBold.ttf" />
+    <Resource Include="../../assets/fonts/manrope/Manrope-Bold.ttf" Link="Assets/Fonts/Manrope-Bold.ttf" />
+    <Content Include="../../assets/fonts/manrope/OFL.txt" Link="Licenses/Manrope-OFL.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

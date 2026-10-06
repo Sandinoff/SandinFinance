@@ -63,7 +63,7 @@ public partial class CategoriesView : UserControl
         e.Effects = DragDropEffects.None;
         if (sender is not Border { DataContext: Category target } card || !TryGetDraggedCategory(e, target, out _)) return;
         e.Effects = DragDropEffects.Move;
-        card.BorderBrush = new SolidColorBrush(Color.FromRgb(18, 121, 107));
+        card.BorderBrush = (Brush)FindResource("Accent");
         card.BorderThickness = e.GetPosition(card).Y < card.ActualHeight / 2 ? new Thickness(1, 4, 1, 1) : new Thickness(1, 1, 1, 4);
     }
 

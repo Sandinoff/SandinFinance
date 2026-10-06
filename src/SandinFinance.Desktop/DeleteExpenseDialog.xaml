@@ -6,12 +6,12 @@
  <StackPanel Margin="28">
   <TextBlock Text="Удалить расход?" Style="{StaticResource DialogTitle}"/>
   <TextBlock x:Name="ExpenseText" Style="{StaticResource SectionTitle}" TextWrapping="Wrap" Margin="0,20,0,8"/>
-  <TextBlock x:Name="DetailText" Foreground="#607780" TextWrapping="Wrap" Margin="0,0,0,16"/>
+  <TextBlock x:Name="DetailText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,16"/>
   <TextBlock Text="Расход будет удалён из истории и статистики. Остаток счёта, накопительные проценты и кредитный долг будут пересчитаны так, как если бы этого расхода не было." TextWrapping="Wrap"/>
-  <TextBlock Text="Удаление нельзя отменить через приложение." Foreground="#607780" TextWrapping="Wrap" Margin="0,12,0,24"/>
+  <TextBlock Text="Удаление нельзя отменить через приложение." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,12,0,24"/>
   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
    <Button x:Name="CancelButton" Content="Отмена" IsCancel="True" IsDefault="True" Margin="0,0,10,0"/>
-   <Button x:Name="DeleteButton" Content="Удалить расход" Background="#C03939" BorderBrush="#C03939" Foreground="White" Click="Delete_Click"/>
+   <Button x:Name="DeleteButton" Content="Удалить расход" Background="{DynamicResource Danger}" BorderBrush="{DynamicResource Danger}" Foreground="White" Click="Delete_Click"/>
   </StackPanel>
  </StackPanel>
 </Window>

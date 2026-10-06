@@ -6,8 +6,35 @@
  Title="SandinFinance — главная" Width="1120" Height="760" MinWidth="760" MinHeight="540"
  WindowStartupLocation="CenterScreen" Language="ru-RU">
  <Window.Resources>
+  <Style x:Key="ProfileMenu" TargetType="ContextMenu" BasedOn="{StaticResource {x:Type ContextMenu}}">
+   <Setter Property="MinWidth" Value="184"/>
+   <Setter Property="Padding" Value="6"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContextMenu">
+    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Outline}" BorderThickness="1" CornerRadius="12" Padding="{TemplateBinding Padding}" Margin="8">
+     <Border.Effect><DropShadowEffect Color="#070E1B" BlurRadius="16" ShadowDepth="4" Opacity="0.45"/></Border.Effect>
+     <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
+    </Border>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="ProfileMenuItem" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+   <Setter Property="Padding" Value="12,11"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
+    <Border x:Name="MenuItemBorder" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <ContentPresenter ContentSource="Icon" VerticalAlignment="Center"/>
+      <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True"/>
+     </Grid>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource Hover}"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="MenuItemBorder" Property="Opacity" Value="0.45"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="SidebarButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-   <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Foreground" Value="{DynamicResource Text}"/><Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="Padding" Value="12,10"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
@@ -15,53 +42,60 @@
      <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
     </Border>
     <ControlTemplate.Triggers>
-     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavBorder" Property="Background" Value="#2B5552"/></Trigger>
-     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="NavBorder" Property="BorderBrush" Value="#8EDAC1"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource Selected}"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="NavBorder" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
  </Window.Resources>
  <Grid>
   <Grid.ColumnDefinitions><ColumnDefinition Width="190"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-  <Border Background="#173B3B" Padding="24,32">
+  <Border Background="{DynamicResource Sidebar}" Padding="24,32">
    <DockPanel>
     <StackPanel DockPanel.Dock="Top">
      <Grid x:Name="LogoHeader" Height="136" Background="Transparent" MouseEnter="Logo_MouseEnter" MouseMove="Logo_MouseMove" MouseLeave="Logo_MouseLeave" AutomationProperties.Name="SandinFinance">
       <Grid.Clip><RectangleGeometry Rect="0,0,142,136" RadiusX="18" RadiusY="18"/></Grid.Clip>
-      <Border CornerRadius="18" BorderBrush="#A1C0AE" BorderThickness="1">
-       <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#E3EEE4" Offset="0"/><GradientStop Color="#B4D2BE" Offset="0.55"/><GradientStop Color="#8DB6A0" Offset="1"/></LinearGradientBrush></Border.Background>
+      <Border CornerRadius="18" BorderBrush="#455A77" BorderThickness="1">
+       <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#C0CDE1" Offset="0"/><GradientStop Color="#A9BEDA" Offset="0.55"/><GradientStop Color="#91ACCF" Offset="1"/></LinearGradientBrush></Border.Background>
       </Border>
       <Canvas IsHitTestVisible="False">
-       <Ellipse x:Name="LogoSpotlight" Width="90" Height="90" Opacity="0">
-        <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#D9FFFFFF" Offset="0"/><GradientStop Color="#5596FFD7" Offset="0.45"/><GradientStop Color="#0096FFD7" Offset="1"/></RadialGradientBrush></Ellipse.Fill>
+       <Ellipse x:Name="LogoSpotlight" Width="132" Height="132" Opacity="0">
+        <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#FFFFFFFF" Offset="0"/><GradientStop Color="#E6E7F5FF" Offset="0.22"/><GradientStop Color="#9EC0DDFF" Offset="0.52"/><GradientStop Color="#00A8CDFF" Offset="1"/></RadialGradientBrush></Ellipse.Fill>
        </Ellipse>
       </Canvas>
       <Image Source="/SandinFinance.Desktop;component/Assets/SandinFinance.png" Stretch="Uniform" Margin="4" IsHitTestVisible="False"/>
      </Grid>
-     <TextBlock Text="Личный бюджет" Foreground="#B2CBC8" FontSize="12" Margin="0,14,0,0"/>
-     <Button x:Name="HomeNav" Content="Главная" Style="{StaticResource SidebarButton}" Background="#2B5552" Margin="0,30,0,8" Click="HomeNav_Click"/>
+     <TextBlock Text="Личный бюджет" Foreground="{DynamicResource MutedText}" FontSize="12" Margin="0,14,0,0"/>
+     <Button x:Name="HomeNav" Content="Главная" Style="{StaticResource SidebarButton}" Background="{DynamicResource Selected}" Margin="0,30,0,8" Click="HomeNav_Click"/>
      <Button x:Name="AccountsNav" Content="Счета" Style="{StaticResource SidebarButton}" Margin="0,0,0,8" Click="AccountsNav_Click"/>
      <Button x:Name="CategoriesNav" Content="Категории" Style="{StaticResource SidebarButton}" Margin="0,0,0,8" Click="CategoriesNav_Click"/>
     </StackPanel>
-    <Button x:Name="ProfileButton" DockPanel.Dock="Bottom" Style="{StaticResource SidebarButton}" Margin="0,20,0,0" Click="Profile_Click" VerticalAlignment="Bottom" ToolTip="Настройки профиля">
-     <StackPanel Orientation="Horizontal"><TextBlock x:Name="ProfileNameText" Text="Sandin" FontWeight="SemiBold"/><TextBlock Text="⌄" Margin="12,0,0,0"/></StackPanel>
-     <Button.ContextMenu><ContextMenu><MenuItem Header="Настройки" Click="ProfileSettings_Click"/></ContextMenu></Button.ContextMenu>
+    <Button x:Name="ProfileButton" DockPanel.Dock="Bottom" Margin="0,20,0,0" VerticalAlignment="Bottom" Style="{StaticResource SidebarButton}" Click="Profile_Click" ToolTip="Открыть меню профиля">
+     <StackPanel Orientation="Horizontal"><Border Width="28" Height="28" Background="{DynamicResource Selected}" CornerRadius="14" Margin="0,0,10,0"><TextBlock Text="S" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock x:Name="ProfileNameText" Text="Sandin" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+     <Button.ContextMenu>
+      <ContextMenu Style="{StaticResource ProfileMenu}" Placement="Top" VerticalOffset="-2" HasDropShadow="False">
+       <MenuItem Header="Настройки" Style="{StaticResource ProfileMenuItem}" Click="ProfileSettings_Click" AutomationProperties.Name="Настройки профиля">
+        <MenuItem.Icon><Grid Width="18" Height="18"><Path Data="M 6,1 L 12,1 L 12,3 L 15,5 L 17,5 L 17,11 L 15,11 L 13,14 L 13,17 L 7,17 L 7,15 L 4,13 L 1,13 L 1,7 L 3,7 L 5,4 Z" Stroke="{DynamicResource Accent}" StrokeThickness="1.3" StrokeLineJoin="Round"/><Ellipse Width="6" Height="6" Stroke="{DynamicResource Accent}" StrokeThickness="1.3"/></Grid></MenuItem.Icon>
+       </MenuItem>
+      </ContextMenu>
+     </Button.ContextMenu>
     </Button>
    </DockPanel>
   </Border>
+  <local:PolygonBackdrop x:Name="PageBackdrop" Grid.Column="1"/>
   <ScrollViewer x:Name="AccountsScroll" Grid.Column="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
    <StackPanel Margin="30">
     <TextBlock Text="Счета" Style="{StaticResource PageTitle}"/>
-    <TextBlock Text="Все места, где хранятся ваши деньги" Foreground="#607780" Margin="0,6,0,24"/>
+    <TextBlock Text="Все места, где хранятся ваши деньги" Foreground="{DynamicResource MutedText}" Margin="0,6,0,24"/>
     <UniformGrid Columns="3" Margin="0,0,0,24">
      <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-      <StackPanel><TextBlock Text="Средства на счетах" Foreground="#607780" TextWrapping="Wrap" ToolTip="Сумма наличных, дебетовых карт и накопительных счетов"/><TextBlock x:Name="OwnMoneyText" Text="0,00 ₽" Style="{StaticResource SummaryAmount}" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel>
+      <StackPanel><TextBlock Text="Средства на счетах" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" ToolTip="Сумма наличных, дебетовых карт и накопительных счетов"/><TextBlock x:Name="OwnMoneyText" Text="0,00 ₽" Style="{StaticResource SummaryAmount}" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel>
      </Border>
      <Border Style="{StaticResource Card}" Margin="0,0,10,0">
-      <StackPanel><TextBlock Text="Кредитный долг" Foreground="#607780"/><TextBlock x:Name="DebtText" Text="0,00 ₽" Style="{StaticResource SummaryAmount}" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel>
+      <StackPanel><TextBlock Text="Кредитный долг" Foreground="{DynamicResource MutedText}"/><TextBlock x:Name="DebtText" Text="0,00 ₽" Style="{StaticResource SummaryAmount}" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel>
      </Border>
      <Border Style="{StaticResource Card}">
-      <StackPanel><TextBlock Text="Чистый баланс" Foreground="#607780" TextWrapping="Wrap" ToolTip="Средства на счетах минус задолженность по кредитным картам"/><TextBlock x:Name="NetText" Text="0,00 ₽" Style="{StaticResource SummaryAmount}" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel>
+      <StackPanel><TextBlock Text="Чистый баланс" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" ToolTip="Средства на счетах минус задолженность по кредитным картам"/><TextBlock x:Name="NetText" Text="0,00 ₽" Style="{StaticResource SummaryAmount}" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel>
      </Border>
     </UniformGrid>
     <DockPanel Margin="0,0,0,14">
@@ -73,14 +107,14 @@
     </DockPanel>
     <DockPanel Margin="0,0,0,14">
      <CheckBox x:Name="ShowHiddenInput" DockPanel.Dock="Right" Content="Показать скрытые счета" Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"/>
-     <TextBlock Text="Перетаскивайте счета за ⋮⋮" Foreground="#607780"/>
+     <TextBlock Text="Перетаскивайте счета за ⋮⋮" Foreground="{DynamicResource MutedText}"/>
     </DockPanel>
-    <TextBlock x:Name="HiddenEmptyText" Text="Все счета скрыты. Включите «Показать скрытые счета», чтобы вернуть их." Visibility="Collapsed" TextWrapping="Wrap" Foreground="#607780" Margin="0,0,0,14"/>
+    <TextBlock x:Name="HiddenEmptyText" Text="Все счета скрыты. Включите «Показать скрытые счета», чтобы вернуть их." Visibility="Collapsed" TextWrapping="Wrap" Foreground="{DynamicResource MutedText}" Margin="0,0,0,14"/>
     <Border x:Name="EmptyState" Style="{StaticResource Card}" Padding="32" Margin="0,0,0,12">
      <StackPanel>
       <TextBlock Text="С чего начнём?" Style="{StaticResource SectionTitle}"/>
-      <TextBlock Text="Добавьте наличные, карту или накопительный счёт и укажите, сколько денег там уже есть." TextWrapping="Wrap" Foreground="#607780" Margin="0,10,0,14"/>
-      <TextBlock Text="Начальный остаток — ваша точка отсчёта. Он не считается доходом." TextWrapping="Wrap" Foreground="#12796B"/>
+      <TextBlock Text="Добавьте наличные, карту или накопительный счёт и укажите, сколько денег там уже есть." TextWrapping="Wrap" Foreground="{DynamicResource MutedText}" Margin="0,10,0,14"/>
+      <TextBlock Text="Начальный остаток — ваша точка отсчёта. Он не считается доходом." TextWrapping="Wrap" Foreground="{DynamicResource Accent}"/>
      </StackPanel>
     </Border>
     <ItemsControl x:Name="AccountsList">
@@ -100,31 +134,31 @@
            <TextBlock Text="⋮⋮" FontSize="20" Padding="0,0,12,0" Cursor="SizeAll" ToolTip="Перетащить счёт" PreviewMouseLeftButtonDown="DragHandle_MouseDown" PreviewMouseMove="DragHandle_MouseMove"/>
            <Button Padding="7,5" Click="ToggleHidden_Click" ToolTip="{Binding VisibilityAction}" AutomationProperties.Name="{Binding VisibilityAction}" AutomationProperties.AutomationId="ToggleAccountVisibility">
             <Grid Width="22" Height="16">
-             <Path Data="M 1,8 C 6,0 16,0 21,8 C 16,16 6,16 1,8 Z" Stroke="#607780" StrokeThickness="1.5"/>
-             <Ellipse Width="5" Height="5" Fill="#607780"/>
-             <Path Data="M 1,1 L 21,15" Stroke="#607780" StrokeThickness="2" Visibility="{Binding IsHidden, Converter={StaticResource BooleanVisibility}}"/>
+             <Path Data="M 1,8 C 6,0 16,0 21,8 C 16,16 6,16 1,8 Z" Stroke="{DynamicResource MutedText}" StrokeThickness="1.5"/>
+             <Ellipse Width="5" Height="5" Fill="{DynamicResource MutedText}"/>
+             <Path Data="M 1,1 L 21,15" Stroke="{DynamicResource MutedText}" StrokeThickness="2" Visibility="{Binding IsHidden, Converter={StaticResource BooleanVisibility}}"/>
             </Grid>
            </Button>
-           <TextBlock Text="Скрыт" Foreground="#607780" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="{Binding IsHidden, Converter={StaticResource BooleanVisibility}}"/>
+           <TextBlock Text="Скрыт" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="{Binding IsHidden, Converter={StaticResource BooleanVisibility}}"/>
           </StackPanel>
-          <TextBlock Text="{Binding TypeLabel}" Foreground="#607780"/>
+          <TextBlock Text="{Binding TypeLabel}" Foreground="{DynamicResource MutedText}"/>
           <TextBlock Text="{Binding Name}" Style="{StaticResource SectionTitle}" Margin="0,5,0,8" TextWrapping="Wrap"/>
-          <TextBlock Text="{Binding DateText}" Foreground="#607780"/>
+          <TextBlock Text="{Binding DateText}" Foreground="{DynamicResource MutedText}"/>
           <Button Content="Настроить" HorizontalAlignment="Left" Margin="0,12,0,0" Padding="12,5" Click="EditAccount_Click" AutomationProperties.AutomationId="EditAccount"/>
-          <Button Content="Удалить счёт" Foreground="#C03939" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,5" Click="DeleteAccount_Click" AutomationProperties.AutomationId="DeleteAccount"/>
+          <Button Content="Удалить счёт" Foreground="{DynamicResource Danger}" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,5" Click="DeleteAccount_Click" AutomationProperties.AutomationId="DeleteAccount"/>
           <Button Content="Добавить покупку" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,5" Click="AddPurchase_Click" IsEnabled="{Binding CanAddPurchase}" Visibility="{Binding IsCredit, Converter={StaticResource BooleanVisibility}}"/>
          </StackPanel>
          <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-          <TextBlock Text="{Binding CardBalanceLabel}" Foreground="#607780" TextAlignment="Right"/>
+          <TextBlock Text="{Binding CardBalanceLabel}" Foreground="{DynamicResource MutedText}" TextAlignment="Right"/>
           <TextBlock Text="{Binding CardBalanceText}" Style="{StaticResource PageTitle}" Margin="0,5,0,8" TextAlignment="Right" TextWrapping="Wrap"/>
-          <TextBlock Text="{Binding FullCardBalanceText}" Foreground="#607780" TextAlignment="Right" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="{Binding HasBudgetDisplay, Converter={StaticResource BooleanVisibility}}"/>
-          <TextBlock Text="{Binding DebtText}" Foreground="#C03939" FontSize="16" FontWeight="Bold" TextAlignment="Right" Margin="0,0,0,8" Visibility="{Binding IsCredit, Converter={StaticResource BooleanVisibility}}"/>
-          <TextBlock Text="{Binding DetailText}" Foreground="#607780" TextAlignment="Right" TextWrapping="Wrap"/>
-          <TextBlock Text="{Binding AdditionalText}" Foreground="#607780" TextAlignment="Right" TextWrapping="Wrap" Margin="0,8,0,0"/>
+          <TextBlock Text="{Binding FullCardBalanceText}" Foreground="{DynamicResource MutedText}" TextAlignment="Right" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="{Binding HasBudgetDisplay, Converter={StaticResource BooleanVisibility}}"/>
+          <TextBlock Text="{Binding DebtText}" Foreground="{DynamicResource Danger}" FontSize="16" FontWeight="Bold" TextAlignment="Right" Margin="0,0,0,8" Visibility="{Binding IsCredit, Converter={StaticResource BooleanVisibility}}"/>
+          <TextBlock Text="{Binding DetailText}" Foreground="{DynamicResource MutedText}" TextAlignment="Right" TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding AdditionalText}" Foreground="{DynamicResource MutedText}" TextAlignment="Right" TextWrapping="Wrap" Margin="0,8,0,0"/>
          </StackPanel>
          <ItemsControl Grid.Row="1" Grid.ColumnSpan="2" ItemsSource="{Binding PaymentSummaries}" Margin="0,12,0,0">
           <ItemsControl.ItemTemplate><DataTemplate>
-           <DockPanel Margin="0,8,0,0"><TextBlock DockPanel.Dock="Right" Text="{Binding Payments}" Foreground="#C03939" FontWeight="Bold" Margin="16,0,0,0"/><TextBlock Text="{Binding Heading}" Foreground="#C03939" FontWeight="Bold" TextWrapping="Wrap"/></DockPanel>
+           <DockPanel Margin="0,8,0,0"><TextBlock DockPanel.Dock="Right" Text="{Binding Payments}" Foreground="{DynamicResource Danger}" FontWeight="Bold" Margin="16,0,0,0"/><TextBlock Text="{Binding Heading}" Foreground="{DynamicResource Danger}" FontWeight="Bold" TextWrapping="Wrap"/></DockPanel>
           </DataTemplate></ItemsControl.ItemTemplate>
          </ItemsControl>
         </Grid>
@@ -132,7 +166,7 @@
       </DataTemplate>
      </ItemsControl.ItemTemplate>
     </ItemsControl>
-    <TextBlock x:Name="StatusText" Foreground="#607780" TextWrapping="Wrap" Margin="0,10,0,0"/>
+    <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,10,0,0"/>
    </StackPanel>
   </ScrollViewer>
   <local:CategoriesView x:Name="CategoriesPage" Grid.Column="1" Visibility="Collapsed"/>

@@ -10,10 +10,10 @@
     <TextBlock Text="Перевод между счетами" Style="{StaticResource DialogTitle}" Margin="0,0,0,20"/>
     <Label Content="Откуда списать" Target="{Binding ElementName=FromInput}" Padding="0,0,0,6"/>
     <ComboBox x:Name="FromInput" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Account_Changed"/>
-    <TextBlock x:Name="FromBalanceText" Foreground="#607780" Margin="0,8,0,0" TextWrapping="Wrap"/>
+    <TextBlock x:Name="FromBalanceText" Foreground="{DynamicResource MutedText}" Margin="0,8,0,0" TextWrapping="Wrap"/>
     <Label Content="Куда зачислить" Target="{Binding ElementName=ToInput}" Padding="0,16,0,6"/>
     <ComboBox x:Name="ToInput" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Account_Changed"/>
-    <TextBlock x:Name="ToBalanceText" Foreground="#607780" Margin="0,8,0,0" TextWrapping="Wrap"/>
+    <TextBlock x:Name="ToBalanceText" Foreground="{DynamicResource MutedText}" Margin="0,8,0,0" TextWrapping="Wrap"/>
     <Label Content="Сумма, ₽" Target="{Binding ElementName=AmountInput}" Padding="0,16,0,6"/>
     <TextBox x:Name="AmountInput" MaxLength="32" TextChanged="Input_Changed"/>
     <Grid Margin="0,16,0,0">
@@ -21,8 +21,8 @@
      <StackPanel Margin="0,0,16,0"><Label Content="Дата" Target="{Binding ElementName=DateInput}" Padding="0,0,0,6"/><DatePicker x:Name="DateInput" Padding="6" SelectedDateChanged="Input_Changed"/></StackPanel>
      <StackPanel Grid.Column="1"><Label Content="Время" Target="{Binding ElementName=TimeInput}" Padding="0,0,0,6"/><TextBox x:Name="TimeInput" MaxLength="5" TextChanged="Input_Changed"/></StackPanel>
     </Grid>
-    <TextBlock x:Name="HintText" Foreground="#607780" TextWrapping="Wrap" Margin="0,16,0,0"/>
-    <TextBlock x:Name="ErrorText" Foreground="#A52828" TextWrapping="Wrap" Margin="0,14,0,0" AutomationProperties.LiveSetting="Assertive"/>
+    <TextBlock x:Name="HintText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,16,0,0"/>
+    <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,14,0,0" AutomationProperties.LiveSetting="Assertive"/>
    </StackPanel>
   </ScrollViewer>
   <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="28,12,28,22">

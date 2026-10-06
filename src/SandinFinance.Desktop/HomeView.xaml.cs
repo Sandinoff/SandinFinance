@@ -69,7 +69,7 @@ public partial class HomeView : UserControl
         PieCanvas.Children.Clear();
         if (categories.Count == 0)
         {
-            var empty = new Ellipse { Width = 224, Height = 224, Stroke = new SolidColorBrush(Color.FromRgb(224, 231, 234)), StrokeThickness = 44 };
+            var empty = new Ellipse { Width = 224, Height = 224, Stroke = (Brush)FindResource("OutlineSoft"), StrokeThickness = 44 };
             Canvas.SetLeft(empty, 48); Canvas.SetTop(empty, 48); PieCanvas.Children.Add(empty); return;
         }
         var angle = -Math.PI / 2;
@@ -94,7 +94,7 @@ public partial class HomeView : UserControl
                     context.ArcTo(PointAt(90, angle), new Size(90, 90), 0, sweep > Math.PI, SweepDirection.Counterclockwise, true, false);
                 }
                 geometry.Freeze();
-                shape = new System.Windows.Shapes.Path { Data = geometry, Fill = color, Stroke = Brushes.White, StrokeThickness = 1.5 };
+                shape = new System.Windows.Shapes.Path { Data = geometry, Fill = color, Stroke = (Brush)FindResource("Surface"), StrokeThickness = 1.5 };
             }
             shape.ToolTip = category.Tooltip;
             System.Windows.Automation.AutomationProperties.SetName(shape, $"{category.Name}: {category.AmountText}, {category.ShareText}");

@@ -53,24 +53,28 @@ public sealed class ProfileStore(string directory)
     public static ProfileStore Initialize(string directory, string? legacyDirectory = null)
     {
         var store = new ProfileStore(directory);
-        if (File.Exists(store.FilePath)) { store.Load(); return store; }
+        if (File.Exists(store.FilePath)) { store.Load(); ProfileLayout.Migrate(store.DirectoryPath); return store; }
         Directory.CreateDirectory(store.DirectoryPath);
+        ProfileLayout.Migrate(store.DirectoryPath);
         if (legacyDirectory is not null && !string.Equals(Path.GetFullPath(legacyDirectory), store.DirectoryPath, StringComparison.OrdinalIgnoreCase))
         {
             // Validate original files without changing them. All financial history and PNG icons live in these documents.
-            if (File.Exists(Path.Combine(legacyDirectory, "accounts.json"))) new AccountStore(legacyDirectory).Load();
-            if (File.Exists(Path.Combine(legacyDirectory, "categories.json"))) new CategoryStore(legacyDirectory).Load();
+            new AccountStore(legacyDirectory).Load();
+            new CategoryStore(legacyDirectory).Load();
             foreach (var name in new[] { "accounts.json", "accounts.json.bak", "categories.json", "categories.json.bak" })
             {
-                var source = Path.Combine(legacyDirectory, name);
-                var destination = Path.Combine(store.DirectoryPath, name);
+                var source = name.EndsWith(".bak") ? ProfileLayout.AutomaticBackup(legacyDirectory, name[..^4]) : ProfileLayout.ReadFile(legacyDirectory, name);
+                if (!File.Exists(source)) source = Path.Combine(legacyDirectory, name);
+                var destination = name.EndsWith(".bak") ? ProfileLayout.AutomaticBackup(store.DirectoryPath, name[..^4]) : ProfileLayout.DataFile(store.DirectoryPath, name);
                 if (!File.Exists(source) || File.Exists(destination)) continue;
                 var temporary = destination + ".migration.tmp";
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 File.Copy(source, temporary, overwrite: true);
                 File.Move(temporary, destination);
             }
         }
         store.Save(new UserProfile());
+        ProfileLayout.Migrate(store.DirectoryPath);
         return store;
     }
 
@@ -94,7 +98,9 @@ public sealed class ProfileStore(string directory)
                 JsonSerializer.Serialize(stream, profile, Options);
                 stream.Flush(flushToDisk: true);
             }
-            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, FilePath + ".bak");
+            var backup = ProfileLayout.AutomaticBackup(DirectoryPath, "profile.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, backup);
             else File.Move(temporary, FilePath);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }

@@ -46,14 +46,14 @@ public partial class MainWindow : Window
 
     private void Profile_Click(object sender, RoutedEventArgs e)
     {
-        ProfileButton.ContextMenu.PlacementTarget = ProfileButton;
-        ProfileButton.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
-        ProfileButton.ContextMenu.IsOpen = true;
+        if (profileStore is null || showingDialog) return;
+        var menu = ProfileButton.ContextMenu;
+        menu.PlacementTarget = ProfileButton;
+        menu.IsOpen = !menu.IsOpen;
     }
 
     private static void AnimateLogo(UIElement target, DependencyProperty property, double value)
     {
-        if (!SystemParameters.ClientAreaAnimation) { target.SetValue(property, value); return; }
         target.BeginAnimation(property, new DoubleAnimation(value, TimeSpan.FromMilliseconds(160))
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
@@ -69,7 +69,7 @@ public partial class MainWindow : Window
     private void Logo_MouseEnter(object sender, MouseEventArgs e)
     {
         MoveLogoSpotlight(e.GetPosition(LogoHeader));
-        AnimateLogo(LogoSpotlight, UIElement.OpacityProperty, 0.55);
+        AnimateLogo(LogoSpotlight, UIElement.OpacityProperty, 0.95);
     }
 
     private void Logo_MouseMove(object sender, MouseEventArgs e) => MoveLogoSpotlight(e.GetPosition(LogoHeader));
@@ -78,7 +78,7 @@ public partial class MainWindow : Window
 
     private void ProfileSettings_Click(object sender, RoutedEventArgs e)
     {
-        if (profileStore is null) return;
+        if (profileStore is null || showingDialog) return;
         ProfileButton.ContextMenu.IsOpen = false;
         showingDialog = true;
         try { new ProfileSettingsWindow(profileStore) { Owner = this }.ShowDialog(); }
@@ -116,7 +116,7 @@ public partial class MainWindow : Window
     private void SetNavigation(Button selected, string caption)
     {
         foreach (var button in new[] { HomeNav, AccountsNav, CategoriesNav })
-            button.Background = button == selected ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 85, 82)) : System.Windows.Media.Brushes.Transparent;
+            button.Background = button == selected ? (System.Windows.Media.Brush)FindResource("Selected") : System.Windows.Media.Brushes.Transparent;
         Title = $"SandinFinance — {caption}";
     }
 

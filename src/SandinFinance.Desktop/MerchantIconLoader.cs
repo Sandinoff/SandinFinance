@@ -12,8 +12,8 @@ public static class MerchantIconLoader
 {
     public static string? SelectPng(DependencyObject owner)
     {
-        var dialog = new OpenFileDialog { Title = "PNG-иконка магазина", Filter = "PNG-изображения (*.png)|*.png", CheckFileExists = true, Multiselect = false };
-        return dialog.ShowDialog(Window.GetWindow(owner)) == true ? LoadPng(dialog.FileName) : null;
+        var dialog = new MerchantIconPicker { Owner = Window.GetWindow(owner) };
+        return dialog.ShowDialog() == true ? dialog.SelectedPng : null;
     }
 
     public static string LoadPng(string path)
@@ -33,7 +33,15 @@ public sealed class PngIconConverter : IValueConverter
     private static readonly Dictionary<string, BitmapImage> Cache = new(StringComparer.Ordinal);
     public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is not string { Length: > 0 } data) return null;
+        var data = value switch
+        {
+            string png => png,
+            Merchant merchant => merchant.PngIconBase64 ?? MerchantIconCatalog.ForName(merchant.Name),
+            BudgetEntry entry => entry.PngIconBase64 ?? MerchantIconCatalog.ForName(entry.MerchantName),
+            MerchantTotal merchant => merchant.PngIconBase64 ?? MerchantIconCatalog.ForName(merchant.Name),
+            _ => null
+        };
+        if (string.IsNullOrEmpty(data)) return null;
         if (Cache.TryGetValue(data, out var cached)) return cached;
         try
         {
