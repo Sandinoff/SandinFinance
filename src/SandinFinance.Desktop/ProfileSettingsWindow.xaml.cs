@@ -7,6 +7,7 @@ namespace SandinFinance.Desktop;
 public partial class ProfileSettingsWindow : Window
 {
     private readonly ProfileStore store;
+    public string? RequestedDirectory { get; private set; }
     public ProfileSettingsWindow(ProfileStore store)
     {
         this.store = store;
@@ -22,6 +23,22 @@ public partial class ProfileSettingsWindow : Window
             if (dialog.ShowDialog() == true) StatusText.Text = "PIN обновлён. Новый код будет действовать при следующем входе.";
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException) { StatusText.Text = ex.Message; }
+    }
+
+    public void SelectProfileDirectory(string directory)
+    {
+        directory = System.IO.Path.GetFullPath(directory);
+        if (string.Equals(directory.TrimEnd(System.IO.Path.DirectorySeparatorChar), store.DirectoryPath.TrimEnd(System.IO.Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Эта папка уже используется.");
+        if (System.IO.Directory.Exists(directory) && System.IO.Directory.EnumerateFileSystemEntries(directory).Any()) throw new ArgumentException("Выберите пустую папку для профиля.");
+        RequestedDirectory = directory;
+        DialogResult = true;
+    }
+    private void ChangeFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new OpenFolderDialog { Title = "Выберите пустую папку для профиля", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Multiselect = false };
+        if (picker.ShowDialog(this) != true) return;
+        try { SelectProfileDirectory(picker.FolderName); }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or ArgumentException) { StatusText.Text = ex.Message; }
     }
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)

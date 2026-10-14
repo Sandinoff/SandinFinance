@@ -5,8 +5,9 @@
 Нужен Git for Windows. Для приватного репозитория используйте вход через Git Credential Manager; токены в команды добавлять не нужно.
 
 ```powershell
-New-Item -ItemType Directory -Force -Path '<папка проектов>' | Out-Null
-git clone https://github.com/Sandinoff/SandinFinance.git '<папка проектов>\SandinFinance'
+$projectsDirectory = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Projects'
+New-Item -ItemType Directory -Force -Path $projectsDirectory | Out-Null
+git clone https://github.com/Sandinoff/SandinFinance.git (Join-Path $projectsDirectory 'SandinFinance')
 ```
 
 Если папка уже существует, не удаляйте её: сначала проверьте содержимое. `git clone` не перезаписывает непустую папку.

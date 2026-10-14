@@ -10,6 +10,7 @@ public partial class App : Application
 {
     private Mutex? instanceLock;
     private bool ownsLock;
+    private ProfileLocationStore? profileLocations;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -19,7 +20,7 @@ public partial class App : Application
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if (string.IsNullOrEmpty(documents)) { MessageBox.Show("Не удалось найти папку «Документы».", "SandinFinance"); Shutdown(1); return; }
         string? directory = null;
-        string profileName = "Sandin";
+        string profileName = "Профиль";
         var legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SandinFinance");
         if (e.Args.Length == 2 && e.Args[0] == "--data-dir") { directory = Path.GetFullPath(e.Args[1]); legacy = null; }
         else if (e.Args.Length != 0)
@@ -31,9 +32,14 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         try
         {
+            if (e.Args.Length == 0)
+            {
+                profileLocations = new ProfileLocationStore(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+                directory = profileLocations.LoadDirectory();
+            }
             directory ??= ProfileStore.FindExistingDirectory(documents);
-            if (directory is null && (File.Exists(ProfileLayout.ReadFile(legacy!, "accounts.json")) || File.Exists(ProfileLayout.ReadFile(legacy!, "categories.json"))))
-                directory = ProfileStore.DefaultDirectory(documents);
+            var importLegacy = directory is null && legacy is not null &&
+                (File.Exists(ProfileLayout.ReadFile(legacy, "accounts.json")) || File.Exists(ProfileLayout.ReadFile(legacy, "categories.json")));
             if (directory is null || !File.Exists(Path.Combine(directory, "profile.json")))
             {
                 var welcome = new WelcomeWindow();
@@ -42,7 +48,7 @@ public partial class App : Application
                 if (directory is null)
                 {
                     directory = ProfileStore.DirectoryForName(documents, profileName);
-                    legacy = null;
+                    if (!importLegacy) legacy = null;
                 }
             }
         }
@@ -71,6 +77,7 @@ public partial class App : Application
             var mode = profileStore.Load().HasPin ? PinMode.Login : PinMode.Setup;
             var login = new PinWindow(profileStore, mode);
             if (login.ShowDialog() != true) { Shutdown(); return; }
+            profileLocations?.SaveDirectory(directory);
             MainWindow = new MainWindow(directory, profileStore);
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             MainWindow.Show();
@@ -80,6 +87,40 @@ public partial class App : Application
             MessageBox.Show($"Не удалось открыть профиль. Данные не сброшены.\n{ex.Message}", "SandinFinance");
             Shutdown(1);
         }
+    }
+
+    public void ChangeProfileDirectory(MainWindow current, string source, string destination)
+    {
+        if (MainWindow != current) throw new InvalidOperationException("Нельзя перенести профиль неактивного окна.");
+        destination = Path.GetFullPath(destination);
+        var identity = destination.TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        var suffix = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+        var nextLock = new Mutex(false, @"Local\SandinFinance." + suffix);
+        var acquired = false;
+        try
+        {
+            try { acquired = nextLock.WaitOne(0); }
+            catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired) throw new IOException("Выбранный профиль открыт в другом окне.");
+            ProfileRelocation.Copy(source, destination);
+            var replacement = new MainWindow(destination, new ProfileStore(destination));
+            try { profileLocations?.SaveDirectory(destination); }
+            catch { replacement.Close(); throw; }
+            var oldLock = instanceLock;
+            var ownedOldLock = ownsLock;
+            var previousMode = ShutdownMode;
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            MainWindow = replacement;
+            instanceLock = nextLock;
+            ownsLock = true;
+            acquired = false;
+            current.Close();
+            if (ownedOldLock) oldLock!.ReleaseMutex();
+            oldLock?.Dispose();
+            replacement.Show();
+            ShutdownMode = previousMode;
+        }
+        finally { if (acquired) { nextLock.ReleaseMutex(); nextLock.Dispose(); } else if (instanceLock != nextLock) nextLock.Dispose(); }
     }
 
     protected override void OnExit(ExitEventArgs e)

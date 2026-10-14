@@ -11,6 +11,8 @@
 /backups/
 **/profile.json
 **/profile.json.*
+**/profile-location.json
+**/profile-location.json.*
 **/accounts.json
 **/accounts.json.*
 **/categories.json

@@ -920,6 +920,43 @@ Check("New profiles use chosen names, persist PIN and remain isolated", () =>
     Assert(File.ReadAllBytes(profile.FilePath).SequenceEqual(bytes));
     Assert(!Directory.Exists(ProfileStore.DefaultDirectory(docs)));
 });
+Check("Profile location is per Windows user; relocation preserves files and rejects conflicts", () =>
+{
+    var sandbox = Path.Combine(root, "profile-location");
+    var firstDocs = Path.Combine(sandbox, "first-user", "redirected-documents");
+    var secondDocs = Path.Combine(sandbox, "second-user", "documents");
+    var source = ProfileStore.DirectoryForName(firstDocs, "Анна");
+    Assert(source != ProfileStore.DirectoryForName(secondDocs, "Анна"));
+    var profile = ProfileStore.Initialize(source, name: "Анна");
+    profile.SetInitialPin("2468");
+    new AccountStore(source).Save([Cash("Тестовый счёт", 1234.56m)]);
+    var backup = Path.Combine(ProfileLayout.ManualBackups(source), "snapshot");
+    Directory.CreateDirectory(backup);
+    File.WriteAllBytes(Path.Combine(backup, "test.bin"), [0, 1, 2, 255]);
+    var originals = Directory.GetFiles(source, "*", SearchOption.AllDirectories).ToDictionary(f => Path.GetRelativePath(source, f), File.ReadAllBytes);
+    var firstLocations = new ProfileLocationStore(Path.Combine(sandbox, "first-user", "local-app-data"));
+    var secondLocations = new ProfileLocationStore(Path.Combine(sandbox, "second-user", "local-app-data"));
+    Assert(firstLocations.LoadDirectory() is null && secondLocations.LoadDirectory() is null);
+    firstLocations.SaveDirectory(source);
+    var destination = Path.Combine(sandbox, "chosen-budget-folder");
+    ProfileRelocation.Copy(source, destination);
+    foreach (var file in originals)
+    {
+        Assert(File.ReadAllBytes(Path.Combine(source, file.Key)).SequenceEqual(file.Value));
+        Assert(File.ReadAllBytes(Path.Combine(destination, file.Key)).SequenceEqual(file.Value));
+    }
+    firstLocations.SaveDirectory(destination);
+    Assert(new ProfileLocationStore(Path.Combine(sandbox, "first-user", "local-app-data")).LoadDirectory() == destination);
+    Assert(secondLocations.LoadDirectory() is null && new ProfileStore(destination).VerifyPin("2468"));
+    Assert(new AccountStore(destination).Load().Single().CurrentBalance == 1234.56m);
+    Reject<IOException>(() => ProfileRelocation.Copy(source, destination));
+    Reject<ArgumentException>(() => ProfileRelocation.Copy(source, Path.Combine(source, "nested")));
+    var profileFile = Path.Combine(destination, "profile.json");
+    File.Move(profileFile, profileFile + ".offline");
+    Reject<IOException>(() => firstLocations.LoadDirectory());
+    Assert(!File.Exists(profileFile));
+    File.Move(profileFile + ".offline", profileFile);
+});
 Console.WriteLine($"Passed: {passed}/{passed} checks.");
 
 void Check(string name, Action action)

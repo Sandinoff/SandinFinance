@@ -89,7 +89,13 @@ public partial class MainWindow : Window
         if (profileStore is null || showingDialog) return;
         ProfileButton.ContextMenu.IsOpen = false;
         showingDialog = true;
-        try { new ProfileSettingsWindow(profileStore) { Owner = this }.ShowDialog(); }
+        try
+        {
+            var settings = new ProfileSettingsWindow(profileStore) { Owner = this };
+            settings.ShowDialog();
+            if (settings.RequestedDirectory is { } destination)
+                ((App)Application.Current).ChangeProfileDirectory(this, profileStore.DirectoryPath, destination);
+        }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException) { StatusText.Text = ex.Message; }
         finally { showingDialog = false; }
     }

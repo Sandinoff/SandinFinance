@@ -98,6 +98,7 @@ internal static class Program
             CheckMerchantLibrary(root, app);
             CheckRecurringPayments(root, app);
             CheckCreditReminders(root, app);
+            CheckProfileFolderChange(root, app);
             var badDirectory = Path.Combine(root, "corrupt");
             Directory.CreateDirectory(badDirectory);
             File.WriteAllText(Path.Combine(badDirectory, "accounts.json"), "broken json");
@@ -471,6 +472,37 @@ internal static class Program
         var result = welcome.ShowDialog();
         if (failure is not null) throw failure;
         Assert(result == true && welcome.ProfileName == "Анна", "Welcome accepts a trimmed user name");
+    }
+
+    private static void CheckProfileFolderChange(string root, App app)
+    {
+        var source = Path.Combine(root, "folder-change-source");
+        var destination = Path.Combine(root, "folder-change-destination");
+        var profile = ProfileStore.Initialize(source, name: "Анна");
+        profile.SetInitialPin("2468");
+        new AccountStore(source).Save([new Account { Name = "Тест", Type = AccountType.Cash, OpeningBalance = 1234.56m, OpeningDate = DateOnly.FromDateTime(DateTime.Today) }]);
+        var before = File.ReadAllBytes(new AccountStore(source).FilePath);
+        var owner = new MainWindow(source, profile);
+        app.MainWindow = owner;
+        owner.Show();
+        RunDialog<ProfileSettingsWindow>(owner, () =>
+        {
+            var button = (Button)owner.FindName("ProfileButton");
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ((MenuItem)button.ContextMenu.Items[0]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        }, settings =>
+        {
+            Assert(((Button)settings.FindName("ChangeFolderButton")).IsVisible, "Settings offer profile directory selection");
+            Capture(settings, Path.Combine(root, "settings-folder-change.png"));
+            settings.SelectProfileDirectory(destination);
+        });
+        Assert(!owner.IsVisible && app.MainWindow is MainWindow, "Folder change replaces the window that writes the old directory");
+        Assert(new ProfileStore(destination).VerifyPin("2468") && new AccountStore(destination).Load().Single().CurrentBalance == 1234.56m, "Moved profile retains PIN and balance");
+        Assert(File.ReadAllBytes(new AccountStore(source).FilePath).SequenceEqual(before), "Original profile remains unchanged as a recovery copy");
+        Assert(((TextBlock)app.MainWindow.FindName("ProfileNameText")).Text == "Анна", "New window uses the relocated profile");
+        Add((MainWindow)app.MainWindow, "После переноса", 0, "50", "0", destination);
+        Assert(new AccountStore(destination).Load().Count == 2 && new AccountStore(source).Load().Count == 1, "Subsequent operations write only to the selected folder");
+        app.MainWindow.Close();
     }
 
     private static void CheckAccountDeletion(string root, App app)
