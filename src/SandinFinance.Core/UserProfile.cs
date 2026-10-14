@@ -50,10 +50,39 @@ public sealed class ProfileStore(string directory)
 
     public static string DefaultDirectory(string documentsDirectory) => Path.Combine(Path.GetFullPath(documentsDirectory), "SandinFinance", "Sandin");
 
-    public static ProfileStore Initialize(string directory, string? legacyDirectory = null)
+    public static string DirectoryForName(string documentsDirectory, string name)
+    {
+        name = ValidateProfileName(name);
+        return Path.Combine(Path.GetFullPath(documentsDirectory), "SandinFinance", name);
+    }
+
+    public static string ValidateProfileName(string name)
+    {
+        name = (name ?? "").Trim();
+        var device = name.Split('.')[0].ToUpperInvariant();
+        if (name.Length is < 1 or > 80 || name.Any(c => c < 32 || "<>:\"/\\|?*".Contains(c)) || name.EndsWith('.') ||
+            device is "CON" or "PRN" or "AUX" or "NUL" ||
+            (device.Length == 4 && (device.StartsWith("COM") || device.StartsWith("LPT")) && device[3] is >= '1' and <= '9'))
+            throw new ArgumentException("Введите имя до 80 символов без знаков <> : \" / \\ | ? * и точки в конце.");
+        return name;
+    }
+
+    public static string? FindExistingDirectory(string documentsDirectory)
+    {
+        var root = Path.Combine(Path.GetFullPath(documentsDirectory), "SandinFinance");
+        var previous = DefaultDirectory(documentsDirectory);
+        if (File.Exists(Path.Combine(previous, "profile.json"))) return previous;
+        if (!Directory.Exists(root)) return null;
+        var profiles = Directory.EnumerateDirectories(root).Where(d => File.Exists(Path.Combine(d, "profile.json"))).Take(2).ToList();
+        if (profiles.Count > 1) throw new IOException("Найдено несколько профилей. Откройте нужный с параметром --data-dir <папка профиля>.");
+        return profiles.SingleOrDefault();
+    }
+
+    public static ProfileStore Initialize(string directory, string? legacyDirectory = null, string name = "Sandin")
     {
         var store = new ProfileStore(directory);
         if (File.Exists(store.FilePath)) { store.Load(); ProfileLayout.Migrate(store.DirectoryPath); return store; }
+        name = ValidateProfileName(name);
         Directory.CreateDirectory(store.DirectoryPath);
         ProfileLayout.Migrate(store.DirectoryPath);
         if (legacyDirectory is not null && !string.Equals(Path.GetFullPath(legacyDirectory), store.DirectoryPath, StringComparison.OrdinalIgnoreCase))
@@ -61,11 +90,11 @@ public sealed class ProfileStore(string directory)
             // Validate original files without changing them. All financial history and PNG icons live in these documents.
             new AccountStore(legacyDirectory).Load();
             new CategoryStore(legacyDirectory).Load();
-            foreach (var name in new[] { "accounts.json", "accounts.json.bak", "categories.json", "categories.json.bak" })
+            foreach (var fileName in new[] { "accounts.json", "accounts.json.bak", "categories.json", "categories.json.bak" })
             {
-                var source = name.EndsWith(".bak") ? ProfileLayout.AutomaticBackup(legacyDirectory, name[..^4]) : ProfileLayout.ReadFile(legacyDirectory, name);
-                if (!File.Exists(source)) source = Path.Combine(legacyDirectory, name);
-                var destination = name.EndsWith(".bak") ? ProfileLayout.AutomaticBackup(store.DirectoryPath, name[..^4]) : ProfileLayout.DataFile(store.DirectoryPath, name);
+                var source = fileName.EndsWith(".bak") ? ProfileLayout.AutomaticBackup(legacyDirectory, fileName[..^4]) : ProfileLayout.ReadFile(legacyDirectory, fileName);
+                if (!File.Exists(source)) source = Path.Combine(legacyDirectory, fileName);
+                var destination = fileName.EndsWith(".bak") ? ProfileLayout.AutomaticBackup(store.DirectoryPath, fileName[..^4]) : ProfileLayout.DataFile(store.DirectoryPath, fileName);
                 if (!File.Exists(source) || File.Exists(destination)) continue;
                 var temporary = destination + ".migration.tmp";
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
@@ -73,7 +102,7 @@ public sealed class ProfileStore(string directory)
                 File.Move(temporary, destination);
             }
         }
-        store.Save(new UserProfile());
+        store.Save(new UserProfile { Name = name });
         ProfileLayout.Migrate(store.DirectoryPath);
         return store;
     }

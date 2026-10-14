@@ -902,6 +902,24 @@ Check("Scheduled savings rate resets before payout; delayed payouts are counted 
     var transferred = BudgetStatistics.Calculate([Cash() with { Transactions = [ownTransfer] }], [], CategoryKind.Income, new(start, today));
     Assert(transferred.Total == 0 && transferred.Entries.Single().IsTransfer && !transferred.Entries.Single().CanEdit);
 });
+Check("New profiles use chosen names, persist PIN and remain isolated", () =>
+{
+    var docs = Path.Combine(root, "new-user-documents");
+    Assert(ProfileStore.FindExistingDirectory(docs) is null);
+    foreach (var invalid in new[] { "", "../other", "A/B", "A\\B", "CON", "nul.txt", "COM1", "user." })
+        Reject<ArgumentException>(() => ProfileStore.DirectoryForName(docs, invalid));
+    var directory = ProfileStore.DirectoryForName(docs, "  Анна  ");
+    Assert(Path.GetFileName(directory) == "Анна");
+    var profile = ProfileStore.Initialize(directory, name: "Анна");
+    profile.SetInitialPin("2468");
+    Assert(profile.Load().Name == "Анна" && profile.VerifyPin("2468"));
+    Assert(new AccountStore(directory).Load().Count == 0);
+    Assert(ProfileStore.FindExistingDirectory(docs) == directory);
+    var bytes = File.ReadAllBytes(profile.FilePath);
+    ProfileStore.Initialize(directory, name: "Другой пользователь");
+    Assert(File.ReadAllBytes(profile.FilePath).SequenceEqual(bytes));
+    Assert(!Directory.Exists(ProfileStore.DefaultDirectory(docs)));
+});
 Console.WriteLine($"Passed: {passed}/{passed} checks.");
 
 void Check(string name, Action action)

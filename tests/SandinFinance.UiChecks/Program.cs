@@ -17,6 +17,7 @@ internal static class Program
             Directory.CreateDirectory(root);
             var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             app.InitializeComponent();
+            CheckWelcome(root);
             var window = new MainWindow(root);
             app.MainWindow = window;
             window.Show();
@@ -430,7 +431,7 @@ internal static class Program
 
     private static void CheckMerchantLibrary(string root, App app)
     {
-        Assert(MerchantIconCatalog.Choices.Count == 10, "All supplied merchant PNG icons are embedded");
+        Assert(MerchantIconCatalog.Choices.Count == 13, "All supplied merchant PNG icons are embedded");
         foreach (var icon in MerchantIconCatalog.Choices) PngIcon.Validate(Convert.FromBase64String(icon.PngIconBase64));
         Assert(MerchantIconCatalog.ForName("Пятерочка") == MerchantIconCatalog.ForName("Пятёрочка") && MerchantIconCatalog.ForName("Красное&Белое") is not null, "Brand aliases resolve automatic merchant icons");
         var converted = new PngIconConverter().Convert(new Merchant { Name = "SPAR" }, typeof(System.Windows.Media.ImageSource), null!, System.Globalization.CultureInfo.InvariantCulture);
@@ -438,11 +439,38 @@ internal static class Program
         var owner = new MainWindow(root); app.MainWindow = owner; owner.Show();
         RunDialog<MerchantIconPicker>(owner, () => new MerchantIconPicker { Owner = owner }.ShowDialog(), picker =>
         {
-            Assert(((ItemsControl)picker.FindName("IconsList")).Items.Count == 10, "Gallery lists bundled icons");
+            Assert(((ItemsControl)picker.FindName("IconsList")).Items.Count == 13, "Gallery lists bundled icons");
             Capture(picker, Path.Combine(root, "merchant-icon-gallery.png"));
             picker.Close();
         });
         owner.Close();
+    }
+
+    private static void CheckWelcome(string root)
+    {
+        var welcome = new WelcomeWindow();
+        Exception? failure = null;
+        welcome.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                Assert(welcome.WindowStyle == WindowStyle.None && !((Button)welcome.Template.FindName("ChromeMinimize", welcome)).IsVisible, "Welcome uses styled frameless chrome with only close");
+                var input = (TextBox)welcome.FindName("NameInput");
+                var button = (Button)welcome.FindName("ContinueButton");
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert(!string.IsNullOrEmpty(((TextBlock)welcome.FindName("ErrorText")).Text), "Empty name remains on welcome screen");
+                input.Text = "../other";
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert(welcome.ProfileName == "", "Unsafe profile name is rejected");
+                input.Text = "  Анна  ";
+                Capture(welcome, Path.Combine(root, "welcome.png"));
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
+            catch (Exception ex) { failure = ex; welcome.Close(); }
+        }));
+        var result = welcome.ShowDialog();
+        if (failure is not null) throw failure;
+        Assert(result == true && welcome.ProfileName == "Анна", "Welcome accepts a trimmed user name");
     }
 
     private static void CheckAccountDeletion(string root, App app)

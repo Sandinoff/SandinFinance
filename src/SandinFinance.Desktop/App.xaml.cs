@@ -18,12 +18,37 @@ public partial class App : Application
         if (MainWindow is not null) return;
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if (string.IsNullOrEmpty(documents)) { MessageBox.Show("Не удалось найти папку «Документы».", "SandinFinance"); Shutdown(1); return; }
-        var directory = ProfileStore.DefaultDirectory(documents);
+        string? directory = null;
+        string profileName = "Sandin";
         var legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SandinFinance");
         if (e.Args.Length == 2 && e.Args[0] == "--data-dir") { directory = Path.GetFullPath(e.Args[1]); legacy = null; }
         else if (e.Args.Length != 0)
         {
             MessageBox.Show("Допустимый параметр: --data-dir <папка>", "SandinFinance");
+            Shutdown(1);
+            return;
+        }
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        try
+        {
+            directory ??= ProfileStore.FindExistingDirectory(documents);
+            if (directory is null && (File.Exists(ProfileLayout.ReadFile(legacy!, "accounts.json")) || File.Exists(ProfileLayout.ReadFile(legacy!, "categories.json"))))
+                directory = ProfileStore.DefaultDirectory(documents);
+            if (directory is null || !File.Exists(Path.Combine(directory, "profile.json")))
+            {
+                var welcome = new WelcomeWindow();
+                if (welcome.ShowDialog() != true) { Shutdown(); return; }
+                profileName = welcome.ProfileName;
+                if (directory is null)
+                {
+                    directory = ProfileStore.DirectoryForName(documents, profileName);
+                    legacy = null;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show($"Не удалось подготовить профиль.\n{ex.Message}", "SandinFinance");
             Shutdown(1);
             return;
         }
@@ -42,7 +67,7 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         try
         {
-            var profileStore = ProfileStore.Initialize(directory, legacy);
+            var profileStore = ProfileStore.Initialize(directory, legacy, profileName);
             var mode = profileStore.Load().HasPin ? PinMode.Login : PinMode.Setup;
             var login = new PinWindow(profileStore, mode);
             if (login.ShowDialog() != true) { Shutdown(); return; }

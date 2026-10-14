@@ -12,7 +12,8 @@ public static class MerchantIconCatalog
         ("5ka", "Пятёрочка", ["Пятерочка", "5ка"]), ("fixprice", "Fix Price", ["FixPrice", "Фикс Прайс"]),
         ("kb", "Красное & Белое", ["Красное&Белое", "Красное и Белое", "КБ"]), ("lenta", "Лента", []),
         ("perekrestok", "Перекрёсток", ["Перекресток"]), ("samokat", "Самокат", []), ("spar", "SPAR", ["Спар"]),
-        ("stolichki", "Столички", []), ("vkusvill", "ВкусВилл", ["Вкус Вилл"]), ("xorek", "Хорёк", ["Хорек"])
+        ("stolichki", "Столички", []), ("vkusvill", "ВкусВилл", ["Вкус Вилл"]), ("xorek", "Хорёк", ["Хорек"]),
+        ("metro", "METRO", ["Метро"]), ("mts", "МТС", ["MTS"]), ("rostiks", "Ростикс", ["Rostic's", "Rostics", "KFC"])
     ];
     private static readonly Lazy<(List<MerchantIconChoice> Choices, Dictionary<string, string> Lookup)> Catalog = new(() =>
     {

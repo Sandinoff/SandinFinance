@@ -28,6 +28,8 @@
 /node_modules/
 /dist/
 /build/
+/SandinFinance.exe
+/SandinFinance.exe.sha256
 /.venv/
 __pycache__/
 *.pyc
