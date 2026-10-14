@@ -20,6 +20,11 @@ internal static class Program
             var window = new MainWindow(root);
             app.MainWindow = window;
             window.Show();
+            Assert(window.WindowStyle == WindowStyle.None && ((Button)window.Template.FindName("ChromeMinimize", window)).IsVisible && ((Button)window.Template.FindName("ChromeClose", window)).IsVisible, "Main window has custom minimize and close controls without native chrome");
+            SystemCommands.MinimizeWindowCommand.Execute(null, window);
+            SettleAnimations();
+            Assert(window.WindowState == WindowState.Minimized, "Custom minimize command works");
+            window.WindowState = WindowState.Normal;
             ((Button)window.FindName("AccountsNav")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Add(window, "Наличные", 0, "5000,50", "0", root, checkErrors: true);
             Add(window, "Дебетовая карта", 1, "2499.50", "0", root);
@@ -90,6 +95,8 @@ internal static class Program
             CheckFinanceUpdates(root, app);
             CheckBudgetCardDisplay(root, app);
             CheckMerchantLibrary(root, app);
+            CheckRecurringPayments(root, app);
+            CheckCreditReminders(root, app);
             var badDirectory = Path.Combine(root, "corrupt");
             Directory.CreateDirectory(badDirectory);
             File.WriteAllText(Path.Combine(badDirectory, "accounts.json"), "broken json");
@@ -129,11 +136,17 @@ internal static class Program
         RunPin(login, dialog =>
         {
             Capture(dialog, Path.Combine(root, "pin-login.png"));
+            Assert(dialog.WindowStyle == WindowStyle.None && !((Button)dialog.Template.FindName("ChromeMinimize", dialog)).IsVisible && ((Button)dialog.Template.FindName("ChromeClose", dialog)).IsVisible, "PIN screen has only a custom close control");
             Assert(dialog.Icon is not null, "Login window uses brand icon");
             EnterPin(dialog, "9999");
             Assert(!string.IsNullOrEmpty(((TextBlock)dialog.FindName("ErrorText")).Text), "Wrong PIN keeps login locked");
             EnterPin(dialog, "0012");
         });
+        var closeProbe = new PinWindow(store, PinMode.Login);
+        closeProbe.Show();
+        Assert(!((Button)closeProbe.Template.FindName("ChromeMinimize", closeProbe)).IsVisible, "PIN minimize control stays hidden");
+        SystemCommands.CloseWindowCommand.Execute(null, closeProbe);
+        Assert(!closeProbe.IsVisible, "Custom close command closes the PIN screen");
         var window = new MainWindow(directory, store);
         app.MainWindow = window;
         window.Show();
@@ -214,7 +227,7 @@ internal static class Program
     {
         var catalog = new CategoryStore(root);
         var categories = catalog.Load();
-        var transport = new Category { Name = "Транспорт", IconKey = "car", ColorHex = "#B76A22" };
+        var transport = new Category { Name = "Транспорт", IconKey = "car", ColorHex = "#B76A22", Merchants = [new() { Name = "Такси" }, new() { Name = "Бензин" }] };
         catalog.Save([.. categories, transport]);
         var window = new MainWindow(root);
         app.MainWindow = window;
@@ -233,9 +246,17 @@ internal static class Program
         var canvas = (Canvas)home.FindName("PieCanvas");
         Assert(canvas.Children.Count == 3 && canvas.Children.OfType<System.Windows.Shapes.Shape>().All(s => s.ToolTip is string text && text.Length > 0), "Each chart sector has detail tooltip");
         Capture(window, Path.Combine(root, "home-expenses.png"));
+        var transportSector = canvas.Children.OfType<System.Windows.Shapes.Shape>().Single(s => s.DataContext is CategoryTotal { Name: "Транспорт" });
+        CheckCategoryPopup(home, () => transportSector.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent }), dialog =>
+        {
+            Assert(((TextBlock)dialog.FindName("CategoryNameText")).Text == "Транспорт" && ((TextBlock)dialog.FindName("AmountText")).Text == Money.Format(200), "Clicked sector opens matching category totals");
+            Assert(((TextBlock)dialog.FindName("BreakdownHeading")).Text == "Товары и услуги", "Transport detail uses goods and services");
+            Assert(((ItemsControl)dialog.FindName("CategoryEntriesList")).Items.Cast<BudgetEntry>().Single().MerchantName == "Такси", "Category detail filters operations");
+            CaptureElement(dialog, Path.Combine(root, "category-details.png"));
+        });
         AddOperation(window, home, CategoryKind.Income, "Наличные", "Зарплата", "1200", "Работодатель", root);
         Assert(new AccountStore(root).Load().Single(a => a.Name == "Наличные").CurrentBalance == 5200.25m, "Home income credits cash");
-        Assert(((TextBlock)home.FindName("TotalText")).Text == Money.Format(1200m), "Income tab has its own chart");
+        Assert(((TextBlock)home.FindName("TotalText")).Text == Money.Format(1210m), "Income total includes salary and accrued interest");
         ((RadioButton)home.FindName("CustomPeriodInput")).IsChecked = true;
         ((DatePicker)home.FindName("StartInput")).SelectedDate = DateTime.Today.AddDays(-7);
         ((DatePicker)home.FindName("EndInput")).SelectedDate = DateTime.Today.AddDays(-1);
@@ -265,7 +286,19 @@ internal static class Program
             var categories = (ComboBox)dialog.FindName("CategoryInput");
             accounts.SelectedItem = accounts.Items.Cast<Account>().Single(a => a.Name == accountName);
             categories.SelectedItem = categories.Items.Cast<Category>().Single(c => c.Name == categoryName);
-            ((ComboBox)dialog.FindName("MerchantInput")).Text = merchant;
+            var merchantInput = (ComboBox)dialog.FindName("MerchantInput");
+            merchantInput.ApplyTemplate();
+            var editor = (TextBox)merchantInput.Template.FindName("PART_EditableTextBox", merchantInput);
+            Assert(editor.IsVisible, "Merchant selector has a visible editable field");
+            var savedMerchant = merchantInput.Items.Cast<Merchant>().FirstOrDefault(m => m.Name == merchant);
+            if (savedMerchant is not null) merchantInput.SelectedItem = savedMerchant;
+            else editor.Text = merchant;
+            Assert(editor.Text == merchant && merchantInput.Text == merchant, "Selection and typed merchant names stay visible and synchronized");
+            if (categoryName == "Транспорт")
+            {
+                Assert(((Label)dialog.FindName("MerchantLabel")).Content as string == "Товары и услуги (необязательно)", "Transport operation label is consistent");
+                Capture(dialog, Path.Combine(root, "transport-transaction.png"));
+            }
             if (checkErrors)
             {
                 ((TextBox)dialog.FindName("AmountInput")).Text = "999999999";
@@ -746,6 +779,14 @@ internal static class Program
         window.UpdateLayout();
         var incomeEntries = ((ItemsControl)home.FindName("EntriesList")).Items.Cast<BudgetEntry>().ToList();
         Assert(incomeEntries.Count(e => e.IsInterest) == 2 && incomeEntries.Count(e => e.IsTransfer) == 1, "Incoming history shows transfer and actual interest entries");
+        Assert(((TextBlock)home.FindName("TotalText")).Text == Money.Format(2), "Accrued interest appears in income statistics");
+        var interestSector = ((Canvas)home.FindName("PieCanvas")).Children.OfType<System.Windows.Shapes.Shape>().Single();
+        CheckCategoryPopup(home, () => interestSector.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(interestSector)!, 0, System.Windows.Input.Key.Enter) { RoutedEvent = UIElement.KeyDownEvent }), dialog =>
+        {
+            Assert(((TextBlock)dialog.FindName("BreakdownHeading")).Text == "По счетам" && ((ItemsControl)dialog.FindName("CategoryEntriesList")).Items.Count == 2, "Interest details show accounts and postings without transfers");
+            Assert(((TextBlock)dialog.FindName("CategoryIcon")).Text == "%", "Interest detail has a readable percent badge");
+            CaptureElement(dialog, Path.Combine(root, "interest-details.png"));
+        });
         RunDialog<EditExpenseDialog>(window, () => FindExpenseDelete(home, Guid.Empty, "EditExpense").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), dialog =>
         {
             Assert(((TextBox)dialog.FindName("TimeInput")).Visibility == Visibility.Collapsed, "Interest correction edits amount only");
@@ -877,6 +918,160 @@ internal static class Program
     }
 
     private static void Capture(Window window, string path) => CaptureElement(window, path);
+
+    private static void SettleAnimations()
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+        timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+        timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
+    private static void CheckCreditReminders(string root, App app)
+    {
+        var directory = Path.Combine(root, "credit-reminders");
+        var store = new AccountStore(directory);
+        var cash = new Account { Name = "Наличные", OpeningBalance = 1000, OpeningDate = DateOnly.FromDateTime(DateTime.Today) };
+        var card = new Account { Name = "Кредитка", Type = AccountType.CreditCard, CreditLimit = 10000, OpeningBalance = 500, OpeningDate = cash.OpeningDate, OpeningDebtPayments = [new(cash.OpeningDate.AddDays(3), 500)] };
+        store.Save([cash, card]);
+        var window = new MainWindow(directory);
+        app.MainWindow = window;
+        window.Show();
+        SettleAnimations();
+        Assert(((Border)window.FindName("ReminderBanner")).IsVisible, "Credit repayment reminder appears three days before its deadline");
+        var items = (ItemsControl)window.FindName("ReminderItems");
+        var reminder = items.Items.Cast<PaymentReminder>().Single();
+        Assert(reminder.Kind == PaymentReminderKind.Credit && reminder.Amount == 500, "Credit banner shows only the unpaid amount");
+        window.UpdateLayout();
+        var item = (ContentPresenter)items.ItemContainerGenerator.ContainerFromIndex(0);
+        FindFirstButton(item).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert(((ScrollViewer)window.FindName("AccountsScroll")).IsVisible && !((HomeView)window.FindName("HomePage")).IsVisible, "Clicking a credit reminder opens accounts");
+        var layer = (Grid)window.Template.FindName("WindowEffectsLayer", window);
+        Assert(layer.ActualHeight == window.ActualHeight && layer.ActualWidth == window.ActualWidth && !layer.IsHitTestVisible, "Background lighting covers the full window, including the transparent caption");
+        var captionPoint = window.PointToScreen(new Point(650, 14));
+        var packedPoint = (long)(ushort)(short)Math.Round(captionPoint.X) | ((long)(ushort)(short)Math.Round(captionPoint.Y) << 16);
+        SendCaptionMessage(new System.Windows.Interop.WindowInteropHelper(window).Handle, 0x00A0, new IntPtr(2), new IntPtr(packedPoint));
+        var light = (FrameworkElement)layer.Children[0];
+        var pointer = (Point)light.GetType().GetProperty("Position")!.GetValue(light)!;
+        Assert(Math.Abs(pointer.X - 650) < 1 && Math.Abs(pointer.Y - 14) < 1, "Native caption movement reaches the lighting effect with correct coordinates");
+        Capture(window, Path.Combine(root, "credit-reminder.png"));
+        AccountTransfers.Add(store, cash.Id, card.Id, 500, DateTime.Now);
+        ((Button)window.FindName("AccountsNav")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert(!((Border)window.FindName("ReminderBanner")).IsVisible, "Paid credit debt no longer produces a reminder");
+        window.Close();
+    }
+
+    private static Button FindFirstButton(DependencyObject node)
+    {
+        if (node is Button button) return button;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+        {
+            try { return FindFirstButton(VisualTreeHelper.GetChild(node, i)); }
+            catch (InvalidOperationException) { }
+        }
+        throw new InvalidOperationException("Button not found.");
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr SendCaptionMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    private static void CheckRecurringPayments(string root, App app)
+    {
+        var directory = Path.Combine(root, "recurring");
+        var accounts = new AccountStore(directory);
+        var catalog = new CategoryStore(directory);
+        var cash = new Account { Name = "Наличные", OpeningBalance = 1000, OpeningDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-5)) };
+        var category = new Category { Name = "Покупки", Merchants = [new() { Name = "Магазин" }] };
+        accounts.Save([cash]);
+        catalog.Save([category]);
+        var expense = BudgetOperations.Add(accounts, catalog, cash.Id, category.Id, CategoryKind.Expense, 100, DateTime.Today.AddDays(-1).AddHours(12), "Магазин");
+        var financialBytes = File.ReadAllBytes(accounts.FilePath);
+        var store = new RecurringPaymentStore(directory);
+        var window = new MainWindow(directory);
+        app.MainWindow = window;
+        window.Show();
+        var home = (HomeView)window.FindName("HomePage");
+        RunDialog<RecurringPaymentDialog>(window, () => FindExpenseDelete(home, expense.Id, "MakeRecurring").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), dialog =>
+        {
+            Assert(((TextBox)dialog.FindName("AmountInput")).Text == "100,00" && ((ComboBox)dialog.FindName("CategoryInput")).SelectedItem is Category { Name: "Покупки" }, "Existing expense pre-fills a recurring plan");
+            ((TextBox)dialog.FindName("NameInput")).Text = "Подписка";
+            ((DatePicker)dialog.FindName("DateInput")).SelectedDate = DateTime.Today.AddDays(3);
+            ((TextBox)dialog.FindName("TimeInput")).Text = "0930";
+            ((ComboBox)dialog.FindName("RepeatInput")).SelectedValue = PaymentRepeat.None;
+            ((Button)dialog.FindName("SaveButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert(dialog.SavedPayment?.FirstDueAt == DateTime.Today.AddDays(3).AddHours(9).AddMinutes(30), "Recurring deadline and formatted time are saved");
+        });
+        SettleAnimations();
+        Assert(File.ReadAllBytes(accounts.FilePath).SequenceEqual(financialBytes), "Copying an expense into a schedule never debits twice");
+        Assert(((Border)window.FindName("ReminderBanner")).IsVisible && ((ItemsControl)window.FindName("ReminderItems")).Items.Count == 1, "Three-day reminder appears at the top");
+        ((Button)window.FindName("RecurringNav")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var page = (RecurringPaymentsView)window.FindName("RecurringPage");
+        Assert(page.IsVisible && !home.IsVisible, "Recurring payments have a dedicated navigation page");
+        Capture(window, Path.Combine(root, "recurring-payments.png"));
+        RunDialog<RecurringPaymentDialog>(window, () => ((Button)page.FindName("CreateButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), dialog =>
+        {
+            ((Button)dialog.FindName("SaveButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert(!string.IsNullOrEmpty(((TextBlock)dialog.FindName("ErrorText")).Text), "Incomplete recurring plan is rejected");
+            ((TextBox)dialog.FindName("NameInput")).Text = "Подписка";
+            ((TextBox)dialog.FindName("AmountInput")).Text = "200";
+            ((DatePicker)dialog.FindName("DateInput")).SelectedDate = DateTime.Today.AddDays(10);
+            Capture(dialog, Path.Combine(root, "recurring-dialog.png"));
+            ((Button)dialog.FindName("SaveButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        });
+        Assert(store.Load().Count == 2, "Recurring names may be duplicated");
+        var reminder = store.Load().Single(p => p.Amount == 100);
+        window.Close();
+        var reopened = new MainWindow(directory);
+        app.MainWindow = reopened;
+        reopened.Show();
+        SettleAnimations();
+        Assert(((Border)reopened.FindName("ReminderBanner")).IsVisible, "Reminder returns on each launch until marked paid");
+        ((Button)reopened.FindName("RecurringNav")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        page = (RecurringPaymentsView)reopened.FindName("RecurringPage");
+        reopened.UpdateLayout();
+        FindRecurringAction(page, "PauseRecurring", reminder.Id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert(!((Border)reopened.FindName("ReminderBanner")).IsVisible, "Paused plans do not notify");
+        reopened.UpdateLayout();
+        FindRecurringAction(page, "PauseRecurring", reminder.Id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert(((Border)reopened.FindName("ReminderBanner")).IsVisible, "Resuming a plan restores its reminder");
+        reopened.UpdateLayout();
+        FindRecurringAction(page, "CompleteRecurring", reminder.Id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert(store.Load().Single(p => p.Id == reminder.Id).NextDueAt is null && !((Border)reopened.FindName("ReminderBanner")).IsVisible, "Marking a one-time plan paid removes its reminder");
+        Assert(File.ReadAllBytes(accounts.FilePath).SequenceEqual(financialBytes), "Manual payment mark leaves financial records untouched");
+        reopened.UpdateLayout();
+        RunDialog<DeleteRecurringPaymentDialog>(reopened, () => FindRecurringAction(page, "DeleteRecurring", reminder.Id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), dialog => ((Button)dialog.FindName("DeleteButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)));
+        Assert(store.Load().Count == 1, "Recurring plan can be deleted independently of expenses");
+        reopened.Close();
+    }
+
+    private static Button FindRecurringAction(DependencyObject node, string action, Guid id)
+    {
+        if (node is Button button && System.Windows.Automation.AutomationProperties.GetAutomationId(button) == action && button.DataContext?.GetType().GetProperty("Payment")?.GetValue(button.DataContext) is RecurringPayment payment && payment.Id == id) return button;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+        {
+            try { return FindRecurringAction(VisualTreeHelper.GetChild(node, i), action, id); }
+            catch (InvalidOperationException) { }
+        }
+        throw new InvalidOperationException("Recurring action not found.");
+    }
+
+    private static void CheckCategoryPopup(HomeView home, Action open, Action<CategoryDetailsPopup> inspect)
+    {
+        var windows = Application.Current.Windows.Count;
+        open();
+        SettleAnimations();
+        var popup = (System.Windows.Controls.Primitives.Popup)typeof(HomeView).GetField("detailsPopup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(home)!;
+        Assert(popup.IsOpen && !popup.StaysOpen && popup.AllowsTransparency && Application.Current.Windows.Count == windows, "Category details are a light dismiss popup, not another window");
+        var card = (CategoryDetailsPopup)popup.Child;
+        inspect(card);
+        var owner = Window.GetWindow(home);
+        owner.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(owner)!, 0, System.Windows.Input.Key.Escape) { RoutedEvent = UIElement.PreviewKeyDownEvent });
+        Assert(!popup.IsOpen, "Escape closes category popup");
+        open();
+        Assert(popup.IsOpen, "Category popup can reopen");
+        home.Refresh();
+        Assert(!popup.IsOpen, "Refreshing the period closes old details");
+    }
 
     private static void CaptureElement(FrameworkElement window, string path)
     {

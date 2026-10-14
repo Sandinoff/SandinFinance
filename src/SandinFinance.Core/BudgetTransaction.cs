@@ -16,6 +16,8 @@ public sealed record BudgetTransaction
     public int CreditGraceDays { get; init; }
     public int CreditStatementDay { get; init; }
     public Guid? TransferId { get; init; }
+    // Movement through an own account that is deliberately not tracked in this profile.
+    public bool IsExternalTransfer { get; init; }
     public Guid? CounterpartyAccountId { get; init; }
     public string CounterpartyAccountName { get; init; } = "";
     [System.Text.Json.Serialization.JsonIgnore] public bool IsTransfer => TransferId is not null;
@@ -24,6 +26,7 @@ public sealed record BudgetTransaction
 
     public void Validate()
     {
+        if (IsExternalTransfer && IsTransfer) throw new ArgumentException("Внешний перевод не может одновременно быть переводом между счетами профиля.");
         if (Id == Guid.Empty || (!IsTransfer && CategoryId == Guid.Empty) || !Enum.IsDefined(Kind)) throw new ArgumentException("Неизвестная категория или тип операции.");
         if (IsTransfer && (TransferId == Guid.Empty || CounterpartyAccountId is null || CounterpartyAccountId == Guid.Empty || string.IsNullOrWhiteSpace(CounterpartyAccountName) || CounterpartyAccountName.Length > 80 || CategoryId != Guid.Empty))
             throw new ArgumentException("Повреждена связь перевода между счетами.");

@@ -1,0 +1,18 @@
+<UserControl x:Class="SandinFinance.Desktop.RecurringPaymentsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="30,24,30,24">
+  <TextBlock Text="Регулярные платежи" Style="{StaticResource PageTitle}" TextWrapping="Wrap"/>
+  <TextBlock Text="Напоминания при каждом входе за три дня до срока. Расходы записывайте на «Главной», оплату отмечайте здесь." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,22"/>
+  <DockPanel Margin="0,0,0,16"><Button x:Name="CreateButton" Content="+ Добавить платёж" Style="{StaticResource PrimaryButton}" DockPanel.Dock="Right" Click="Create_Click"/><TextBlock x:Name="CountText" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/></DockPanel>
+  <Border x:Name="EmptyState" Style="{StaticResource Card}"><StackPanel><TextBlock Text="Держите важные сроки под рукой" Style="{StaticResource SectionTitle}" TextWrapping="Wrap"/><TextBlock Text="Подписки, аренда, кредит или связь. Добавьте платёж здесь или нажмите «В регулярные» у расхода на «Главной»." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,10,0,0"/></StackPanel></Border>
+  <ItemsControl x:Name="PaymentsList"><ItemsControl.ItemTemplate><DataTemplate>
+   <Border Style="{StaticResource Card}" Margin="0,0,0,12"><StackPanel>
+    <DockPanel><StackPanel DockPanel.Dock="Right" Margin="18,0,0,0"><TextBlock Text="{Binding Payment.AmountText}" Style="{StaticResource SummaryAmount}" TextAlignment="Right"/><TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource MutedText}" Style="{StaticResource Caption}" TextAlignment="Right" Margin="0,5,0,0"/></StackPanel><TextBlock Text="{Binding Payment.Name}" Style="{StaticResource SectionTitle}" TextWrapping="Wrap"/></DockPanel>
+    <TextBlock Text="{Binding ContextText}" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    <TextBlock Text="{Binding Payment.DueText}" FontWeight="SemiBold" Margin="0,14,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Accent}"/><Style.Triggers><DataTrigger Binding="{Binding IsOverdue}" Value="True"><Setter Property="Foreground" Value="{DynamicResource Danger}"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+    <TextBlock Text="{Binding ScheduleText}" Foreground="{DynamicResource MutedText}" Margin="0,5,0,0" TextWrapping="Wrap"/>
+    <WrapPanel Margin="0,16,0,0"><Button Content="Отметить оплату" Style="{StaticResource PrimaryButton}" Padding="12,7" Margin="0,0,8,8" IsEnabled="{Binding CanComplete}" Click="Complete_Click" AutomationProperties.AutomationId="CompleteRecurring"/><Button Content="Изменить" Padding="12,7" Margin="0,0,8,8" Click="Edit_Click" AutomationProperties.AutomationId="EditRecurring"/><Button Content="{Binding PauseText}" Padding="12,7" Margin="0,0,8,8" Click="Pause_Click" AutomationProperties.AutomationId="PauseRecurring"/><Button Content="Удалить" Foreground="{DynamicResource Danger}" Padding="12,7" Margin="0,0,0,8" Click="Delete_Click" AutomationProperties.AutomationId="DeleteRecurring"/></WrapPanel>
+   </StackPanel></Border>
+  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,14,0,0"/>
+ </StackPanel></ScrollViewer>
+</UserControl>

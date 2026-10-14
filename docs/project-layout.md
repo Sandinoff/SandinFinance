@@ -26,7 +26,8 @@ SandinFinance/
 ├─ profile.json               имя и параметры входа
 ├─ data/
 │  ├─ accounts.json           счета и операции
-│  └─ categories.json         категории и пользовательские иконки
+│  ├─ categories.json         категории и пользовательские иконки
+│  └─ recurring-payments.json расписания и отметки оплаты
 └─ backups/
    ├─ automatic/              последняя резервная копия каждого файла
    └─ manual/                 снимки перед служебными исправлениями и переносами

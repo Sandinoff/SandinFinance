@@ -1,0 +1,29 @@
+<Window x:Class="SandinFinance.Desktop.RecurringPaymentDialog"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Style="{StaticResource {x:Type Window}}" Title="Регулярный платёж — SandinFinance" Width="620" Height="850" MinWidth="520" MinHeight="620" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Language="ru-RU">
+ <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="28">
+   <TextBlock x:Name="HeadingText" Text="Новый регулярный платёж" Style="{StaticResource DialogTitle}" TextWrapping="Wrap"/>
+   <TextBlock Text="Напоминание при каждом входе за три дня до срока" Foreground="{DynamicResource MutedText}" Margin="0,8,0,18" TextWrapping="Wrap"/>
+   <Label Content="Название" Padding="0,0,0,6"/><TextBox x:Name="NameInput" MaxLength="80"/>
+   <Label Content="Сумма, ₽" Padding="0,14,0,6"/><TextBox x:Name="AmountInput"/>
+   <Label Content="Счёт" Padding="0,14,0,6"/><ComboBox x:Name="AccountInput" DisplayMemberPath="Name"/>
+   <Label Content="Категория расходов" Padding="0,14,0,6"/><ComboBox x:Name="CategoryInput" DisplayMemberPath="Name" SelectionChanged="Category_Changed"/>
+   <Label x:Name="MerchantLabel" Content="Магазин (необязательно)" Padding="0,14,0,6"/><ComboBox x:Name="MerchantInput" IsEditable="True" TextSearch.TextPath="Name" DisplayMemberPath="Name"/>
+   <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>
+    <StackPanel Margin="0,0,14,0"><Label Content="Первый срок" Padding="0,0,0,6"/><DatePicker x:Name="DateInput" SelectedDateChanged="Schedule_Changed"/></StackPanel>
+    <StackPanel Grid.Column="1"><Label Content="Время" Padding="0,0,0,6"/><TextBox x:Name="TimeInput" MaxLength="5" TextChanged="Schedule_Changed"/></StackPanel>
+   </Grid>
+   <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>
+    <StackPanel Margin="0,0,14,0"><Label Content="Повторение" Padding="0,0,0,6"/><ComboBox x:Name="RepeatInput" DisplayMemberPath="Name" SelectedValuePath="Value" SelectionChanged="Schedule_Changed"/></StackPanel>
+    <StackPanel Grid.Column="1"><Label Content="Каждые…" Padding="0,0,0,6"/><TextBox x:Name="IntervalInput" Text="1" MaxLength="3" TextChanged="Schedule_Changed" ToolTip="Например, 2 — раз в два месяца"/></StackPanel>
+   </Grid>
+   <CheckBox x:Name="HasEndInput" Content="Ограничить срок повторений" Margin="0,18,0,10" Checked="Schedule_Changed" Unchecked="Schedule_Changed"/>
+   <DatePicker x:Name="EndInput" IsEnabled="{Binding IsChecked, ElementName=HasEndInput}" SelectedDateChanged="Schedule_Changed"/>
+   <TextBlock x:Name="NextDueText" Foreground="{DynamicResource Accent}" TextWrapping="Wrap" Margin="0,14,0,0"/>
+   <TextBlock Text="Деньги автоматически не списываются. Расход записывайте на «Главной», оплату отмечайте в расписании." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,14,0,0"/>
+   <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+  </StackPanel></ScrollViewer>
+  <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="28,14,28,22"><Button Content="Отмена" IsCancel="True" Margin="0,0,10,0"/><Button x:Name="SaveButton" Content="Сохранить" Style="{StaticResource PrimaryButton}" IsDefault="True" Click="Save_Click"/></StackPanel>
+ </Grid>
+</Window>

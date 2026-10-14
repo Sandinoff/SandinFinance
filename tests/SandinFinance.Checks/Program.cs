@@ -621,10 +621,38 @@ Check("Actual savings interest corrections survive replay and resume compounding
     SavingsInterest.Correct(store, savings.Id, start, 0.25m);
     Assert(store.Load().Single().CurrentBalance == 1001.25m && store.Load().Single().InterestCorrections.Count == 1);
     var summary = BudgetStatistics.Calculate(store.Load(), [], CategoryKind.Income, new(start, today));
-    Assert(summary.Entries.Count(e => e.IsInterest) == 2 && summary.Total == 0);
+    Assert(summary.Entries.Count(e => e.IsInterest) == 2 && summary.Total == 1.25m);
+    Assert(summary.Categories.Single().Id == BudgetStatistics.AutomaticInterestCategoryId && summary.Categories.Single().Name == "Проценты");
     var bytes = File.ReadAllText(store.FilePath);
     Reject<ArgumentException>(() => SavingsInterest.Correct(store, savings.Id, today, 1));
     Assert(File.ReadAllText(store.FilePath) == bytes);
+});
+Check("Income statistics include corrected interest once, reuse the interest category and exclude transfers", () =>
+{
+    var directory = Path.Combine(root, "interest-statistics");
+    var store = new AccountStore(directory);
+    var categories = new CategoryStore(directory);
+    var start = today.AddDays(-2);
+    var cash = Cash("Cash", 1000) with { OpeningDate = start };
+    var savings = SavingsInterest.EnsureHistory(Cash("Savings", 1000) with { Type = AccountType.Savings, OpeningDate = start, InterestAsOf = start, AnnualInterestRate = 36.5m });
+    var otherSavings = SavingsInterest.EnsureHistory(Cash("Other savings", 2000) with { Type = AccountType.Savings, OpeningDate = start, InterestAsOf = start, AnnualInterestRate = 36.5m });
+    store.Save([cash, SavingsInterest.Accrue(savings, today), SavingsInterest.Accrue(otherSavings, today)]);
+    var interest = new Category { Name = "Проценты", Kind = CategoryKind.Income, IconKey = "interest", ColorHex = "#2478A8" };
+    var salary = new Category { Name = "Зарплата", Kind = CategoryKind.Income, IconKey = "work" };
+    categories.Save([interest, salary]);
+    BudgetOperations.Add(store, categories, cash.Id, salary.Id, CategoryKind.Income, 20, DateTime.Today, "Работа");
+    BudgetOperations.Add(store, categories, cash.Id, interest.Id, CategoryKind.Income, 3, DateTime.Today, "Банк");
+    AccountTransfers.Add(store, cash.Id, savings.Id, 500, DateTime.Now);
+    SavingsInterest.Correct(store, savings.Id, start, 0.25m);
+    var accounts = store.Load();
+    var summary = BudgetStatistics.Calculate(accounts, categories.Load(), CategoryKind.Income, new(start, today));
+    Assert(summary.Total == 28.25m && summary.Categories.Count == 2);
+    var group = summary.Categories.Single(c => c.Id == interest.Id);
+    Assert(group.Amount == 8.25m && group.ColorHex == interest.ColorHex && group.Merchants.Count == 3 && group.Count == 5);
+    Assert(group.Merchants.Single(m => m.Name == savings.Name).Amount == 1.25m && group.Merchants.Single(m => m.Name == otherSavings.Name).Amount == 4);
+    Assert(summary.Entries.Count(e => e.IsTransfer) == 1 && summary.Categories.Sum(c => c.Amount) == summary.Total);
+    var boundary = BudgetStatistics.Calculate(accounts, categories.Load(), CategoryKind.Income, new(start.AddDays(1), start.AddDays(1)));
+    Assert(boundary.Total == 2.25m && boundary.Entries.All(e => e.IsInterest));
 });
 Check("Transfer history and editable income preserve both legs and do not inflate spending totals", () =>
 {
@@ -756,6 +784,123 @@ Check("Excel export stores numeric amounts and dates, excludes transfers, and es
     Assert(ExpenseExcelExporter.Export(path, [], []) == 0 && !Directory.GetFiles(directory, "*.tmp").Any());
     ExpenseExcelExporter.Export(path, store.Load(), catalog.Load());
     Console.WriteLine("Excel sample: " + path);
+});
+Check("Recurring schedules preserve month-end anchors, leap years, intervals and final dates", () =>
+{
+    var payment = new RecurringPayment { Name = "Подписка", Amount = 100, AccountId = Guid.NewGuid(), CategoryId = Guid.NewGuid(), FirstDueAt = new(2026, 1, 31, 14, 30, 0) };
+    payment.Validate();
+    Assert(payment.DueAt(1) == new DateTime(2026, 2, 28, 14, 30, 0) && payment.DueAt(2) == new DateTime(2026, 3, 31, 14, 30, 0));
+    Assert((payment with { Interval = 2 }).DueAt(1) == new DateTime(2026, 3, 31, 14, 30, 0));
+    var annual = payment with { Repeat = PaymentRepeat.Yearly, FirstDueAt = new(2024, 2, 29, 9, 15, 0) };
+    Assert(annual.DueAt(1) == new DateTime(2025, 2, 28, 9, 15, 0) && annual.DueAt(4) == new DateTime(2028, 2, 29, 9, 15, 0));
+    Assert((payment with { Repeat = PaymentRepeat.Weekly, FirstDueAt = new(2026, 12, 28, 9, 0, 0) }).DueAt(1) == new DateTime(2027, 1, 4, 9, 0, 0));
+    var limited = payment with { EndDate = new(2026, 2, 28) };
+    Assert(limited.DueAt(1) is not null && limited.DueAt(2) is null);
+    Assert((payment with { Repeat = PaymentRepeat.None, CompletedCount = 1 }).NextDueAt is null);
+    Assert((payment with { IsEnabled = false }).NextDueAt is null);
+    Reject<ArgumentException>(() => (payment with { Interval = 0 }).Validate());
+    Reject<ArgumentException>(() => (payment with { Amount = 0 }).Validate());
+    Reject<ArgumentException>(() => (payment with { EndDate = new(2026, 1, 30) }).Validate());
+});
+Check("Recurring reminders appear for all three calendar days at every read and persist until manually paid", () =>
+{
+    var store = new RecurringPaymentStore(Path.Combine(root, "recurring-reminders"));
+    var now = new DateTime(2026, 10, 7, 23, 0, 0);
+    var payment = new RecurringPayment { Name = "Связь", Amount = 500, AccountId = Guid.NewGuid(), CategoryId = Guid.NewGuid(), FirstDueAt = new(2026, 10, 10, 23, 59, 0), Repeat = PaymentRepeat.None };
+    var distant = payment with { Id = Guid.NewGuid(), FirstDueAt = new(2026, 10, 11, 0, 0, 0) };
+    store.Save([payment, distant]);
+    Assert(store.Reminders(now).Single().Id == payment.Id && new RecurringPaymentStore(Path.GetDirectoryName(Path.GetDirectoryName(store.FilePath)!)!).Reminders(now).Single().Id == payment.Id);
+    Assert(store.Reminders(new(2026, 10, 8)).Any(p => p.Id == payment.Id) && store.Reminders(new(2026, 10, 9)).Any(p => p.Id == payment.Id));
+    Assert(store.Reminders(new(2026, 10, 15)).Any(p => p.Id == payment.Id));
+    var bytes = File.ReadAllBytes(store.FilePath);
+    var paid = store.Complete(payment.Id, payment.FirstDueAt, now);
+    Assert(paid.NextDueAt is null && File.ReadAllBytes(store.BackupPath).SequenceEqual(bytes));
+    Assert(!store.Reminders(new(2026, 10, 15)).Any(p => p.Id == payment.Id));
+    var after = File.ReadAllBytes(store.FilePath);
+    Reject<ArgumentException>(() => store.Complete(payment.Id, payment.FirstDueAt, now));
+    Assert(File.ReadAllBytes(store.FilePath).SequenceEqual(after));
+    Assert(!distant.NeedsReminder(new(2026, 10, 7)) && (payment with { IsEnabled = false }).NeedsReminder(now) == false);
+});
+Check("Recurring plans allow duplicates, keep balances untouched and reject corrupt files without overwriting", () =>
+{
+    var directory = Path.Combine(root, "recurring-storage");
+    var accounts = new AccountStore(directory);
+    var account = Cash();
+    accounts.Save([account]);
+    var bytes = File.ReadAllBytes(accounts.FilePath);
+    var store = new RecurringPaymentStore(directory);
+    var payment = new RecurringPayment { Name = "Аренда", Amount = 10000, AccountId = account.Id, CategoryId = Guid.NewGuid(), FirstDueAt = DateTime.Today.AddDays(3).AddHours(9) };
+    store.Save([payment, payment with { Id = Guid.NewGuid() }]);
+    Assert(store.Load().Count == 2);
+    store.Complete(payment.Id, payment.FirstDueAt);
+    Assert(File.ReadAllBytes(accounts.FilePath).SequenceEqual(bytes) && store.Load().Single(p => p.Id == payment.Id).NextDueAt == payment.FirstDueAt.AddMonths(1));
+    var before = File.ReadAllBytes(store.FilePath);
+    Reject<ArgumentException>(() => store.Save([payment, payment]));
+    Assert(File.ReadAllBytes(store.FilePath).SequenceEqual(before));
+    File.WriteAllText(store.FilePath, "broken JSON");
+    Reject<System.Text.Json.JsonException>(() => store.Load());
+    Reject<System.Text.Json.JsonException>(() => store.Complete(payment.Id, payment.FirstDueAt));
+    Assert(File.ReadAllText(store.FilePath) == "broken JSON" && !File.Exists(store.FilePath + ".tmp"));
+});
+Check("Credit reminders use unpaid schedule amounts, appear three days before and disappear after repayment", () =>
+{
+    var directory = Path.Combine(root, "credit-reminders");
+    var store = new AccountStore(directory);
+    var opening = new DateOnly(2026, 10, 1);
+    var cash = Cash("Cash", 5000) with { OpeningDate = opening };
+    var card = Cash("Сбер", 1000) with { Type = AccountType.CreditCard, CreditLimit = 10000, OpeningDate = opening, IsHidden = true, OpeningDebtPayments = [new(new(2026, 10, 31), 600), new(new(2026, 11, 30), 400)] };
+    store.Save([cash, card]);
+    Assert(PaymentReminders.Calculate(store.Load(), [], new(2026, 10, 27, 23, 59, 0)).Count == 0);
+    var reminders = PaymentReminders.Calculate(store.Load(), [], new(2026, 10, 28));
+    Assert(reminders.Single().Amount == 600 && reminders.Single().TargetId == card.Id && reminders.Single().DueAt == new DateTime(2026, 10, 31, 23, 59, 0));
+    AccountTransfers.Add(store, cash.Id, card.Id, 250, DateTime.Now);
+    reminders = PaymentReminders.Calculate(store.Load(), [], new(2026, 10, 29));
+    Assert(reminders.Single().Amount == 350 && CreditGrace.OutstandingPayments(store.Load().Single(a => a.Id == card.Id)).Count == 2);
+    AccountTransfers.Add(store, cash.Id, card.Id, 350, DateTime.Now);
+    Assert(PaymentReminders.Calculate(store.Load(), [], new(2026, 11, 1)).Count == 0);
+    Assert(PaymentReminders.Calculate(store.Load(), [], new(2026, 11, 27)).Single().Amount == 400);
+    AccountTransfers.Add(store, cash.Id, card.Id, 400, DateTime.Now);
+    Assert(PaymentReminders.Calculate(store.Load(), [], new(2026, 12, 1)).Count == 0);
+});
+Check("Credit purchase reminders retain bank grace deadlines and combine with recurring plans without inventing dates", () =>
+{
+    var purchase = new CreditPurchase { Name = "Покупка", Amount = 100, Date = new(2026, 10, 1), Rule = GracePeriodRule.PurchaseMonthPlusThreeMonths, GraceDays = 120 };
+    var card = Cash("Карта", 0) with { Type = AccountType.CreditCard, CreditLimit = 10000, OpeningDate = new(2026, 10, 1), Purchases = [purchase] };
+    var plan = new RecurringPayment { Name = "Связь", Amount = 200, AccountId = Guid.NewGuid(), CategoryId = Guid.NewGuid(), FirstDueAt = new(2027, 1, 30, 9, 0, 0), Repeat = PaymentRepeat.None };
+    Assert(PaymentReminders.Calculate([card], [], new(2027, 1, 27)).Count == 0);
+    var reminders = PaymentReminders.Calculate([card], [plan], new(2027, 1, 28));
+    Assert(reminders.Count == 2 && reminders[0].Kind == PaymentReminderKind.Recurring && reminders[1].Kind == PaymentReminderKind.Credit);
+    Assert(reminders[1].DueAt == new DateTime(2027, 1, 31, 23, 59, 0) && reminders[1].SummaryText.Contains("31.01.2027"));
+    Assert(PaymentReminders.Calculate([card with { Purchases = [], OpeningBalance = 100 }], [], new(2027, 5, 1)).Count == 0);
+    Assert(PaymentReminders.Calculate([Cash()], [], new(2027, 5, 1)).Count == 0);
+});
+Check("Scheduled savings rate resets before payout; delayed payouts are counted once", () =>
+{
+    var start = today.AddDays(-6);
+    var savings = SavingsInterest.EnsureHistory(Cash("Promo", 1000) with
+    {
+        Type = AccountType.Savings, OpeningDate = start, InterestAsOf = start,
+        AnnualInterestRate = 20, DailyInterestPostingTime = new TimeOnly(1, 0)
+    }) with
+    {
+        InterestRates = [new(start, 20, InterestPayout.Daily), new(today, 10, InterestPayout.Daily)],
+        InterestCorrections = [new(start.AddDays(1), 0), new(start.AddDays(2), 1.10m)]
+    };
+    var settled = SavingsInterest.Recalculate(savings, today.AddDays(-1));
+    var beforePayout = SavingsInterest.Accrue(settled, today, today.ToDateTime(new TimeOnly(0, 59)));
+    Assert(beforePayout.AnnualInterestRate == 10 && beforePayout.CreditedInterest == settled.CreditedInterest);
+    var afterPayout = SavingsInterest.Accrue(beforePayout, today, today.ToDateTime(new TimeOnly(1, 0)));
+    Assert(afterPayout.CreditedInterest - beforePayout.CreditedInterest == decimal.Round(beforePayout.CurrentBalance * 0.20m / (DateTime.IsLeapYear(today.Year) ? 366 : 365), 2, MidpointRounding.AwayFromZero));
+    var tomorrow = SavingsInterest.Accrue(afterPayout, today.AddDays(1));
+    Assert(tomorrow.CreditedInterest - afterPayout.CreditedInterest == decimal.Round(afterPayout.CurrentBalance * 0.10m / (DateTime.IsLeapYear(today.Year) ? 366 : 365), 2, MidpointRounding.AwayFromZero));
+    var stats = BudgetStatistics.Calculate([afterPayout], [], CategoryKind.Income, new(start, today));
+    Assert(!stats.Entries.Any(e => e.InterestDate == start.AddDays(1)));
+    Assert(stats.Entries.Single(e => e.InterestDate == start.AddDays(2)).Amount == 1.10m);
+    Assert(stats.Total == afterPayout.CreditedInterest);
+    var ownTransfer = new BudgetTransaction { Kind = CategoryKind.Income, Amount = 50000, OccurredAt = start.ToDateTime(new TimeOnly(12, 0)), CategoryId = Guid.NewGuid(), CategoryName = "Пополнение", IsExternalTransfer = true };
+    ownTransfer.Validate();
+    var transferred = BudgetStatistics.Calculate([Cash() with { Transactions = [ownTransfer] }], [], CategoryKind.Income, new(start, today));
+    Assert(transferred.Total == 0 && transferred.Entries.Single().IsTransfer && !transferred.Entries.Single().CanEdit);
 });
 Console.WriteLine($"Passed: {passed}/{passed} checks.");
 

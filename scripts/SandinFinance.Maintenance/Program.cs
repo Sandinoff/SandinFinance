@@ -2,10 +2,93 @@ using SandinFinance.Core;
 
 try
 {
+if (args.Length == 3 && args[0] == "--apply-account-reconciliation")
+{
+    using var lease = new ProfileWriteLease(args[1]);
+    var options = new System.Text.Json.JsonSerializerOptions { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+    var planBytes = File.ReadAllBytes(args[2]);
+    var plan = System.Text.Json.JsonSerializer.Deserialize<AccountReconciliation>(planBytes, options) ?? throw new ArgumentException("Missing reconciliation plan.");
+    var store = new AccountStore(args[1]);
+    var original = File.ReadAllBytes(store.FilePath);
+    if (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original)) != plan.ExpectedSha256) throw new IOException("The profile changed after preparing the reconciliation; no changes saved.");
+    if (plan.AsOf != DateOnly.FromDateTime(DateTime.Today)) throw new ArgumentException("The reconciliation must be prepared for today.");
+    var accounts = store.Load();
+    if (plan.Replacements.Select(a => a.Id).Distinct().Count() != plan.Replacements.Count || plan.Replacements.Any(a => !accounts.Any(old => old.Id == a.Id))) throw new ArgumentException("Invalid replacement accounts.");
+    var replacements = plan.Replacements.Select(a => a.IsSavings ? SavingsInterest.Recalculate(a, plan.AsOf) : a).ToDictionary(a => a.Id);
+    foreach (var replacement in replacements.Values) { replacement.Validate(); BudgetOperations.ValidateTimeline(replacement); }
+    var updated = accounts.Select(a => replacements.GetValueOrDefault(a.Id) ?? a).ToList();
+    if (updated.Single(a => a.Id == plan.AccountId).CurrentBalance != plan.TargetBalance) throw new InvalidOperationException("The corrected balance does not match the bank.");
+    // Validate the complete transfer graph on a disposable copy before touching the profile.
+    var previewDirectory = Path.Combine(Path.GetTempPath(), "SandinFinance-reconciliation-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var preview = new AccountStore(previewDirectory);
+        Directory.CreateDirectory(Path.GetDirectoryName(preview.FilePath)!);
+        File.WriteAllBytes(preview.FilePath, original);
+        preview.Save(updated);
+        preview.Load();
+    }
+    finally
+    {
+        var resolved = Path.GetFullPath(previewDirectory);
+        var tempRoot = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar);
+        if (Path.GetDirectoryName(resolved) != tempRoot) throw new IOException("Unexpected temporary directory.");
+        if (Directory.Exists(resolved)) Directory.Delete(resolved, recursive: true);
+    }
+    var backup = Path.Combine(ProfileLayout.ManualBackups(args[1]), "before-savings-reconciliation-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
+    Directory.CreateDirectory(backup);
+    File.WriteAllBytes(Path.Combine(backup, "accounts.json"), original);
+    File.WriteAllBytes(Path.Combine(backup, "reconciliation.json"), planBytes);
+    if (!File.ReadAllBytes(store.FilePath).AsSpan().SequenceEqual(original)) throw new IOException("Profile changed during backup; no changes saved.");
+    store.Save(updated);
+    var saved = store.Load().Single(a => a.Id == plan.AccountId);
+    if (saved.CurrentBalance != plan.TargetBalance) throw new InvalidOperationException("Saved balance verification failed; backup retained.");
+    Console.WriteLine($"Reconciled balance: {Money.Format(saved.CurrentBalance)}");
+    Console.WriteLine("Backup: " + backup);
+    return;
+}
+if (args.Length == 5 && args[0] == "--reconcile-credit-statement")
+{
+    using var lease = new ProfileWriteLease(args[1]);
+    var store = new AccountStore(args[1]);
+    var cardId = Guid.Parse(args[2]);
+    var statement = DateOnly.ParseExact(args[3], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var amount = decimal.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
+    Money.Validate(amount, "Statement amount");
+    var accounts = store.Load();
+    var card = accounts.Single(a => a.Id == cardId && a.IsCredit);
+    if (card.GraceRule != GracePeriodRule.StatementMonthEnd || card.StatementDay != statement.Day) throw new ArgumentException("Statement date does not match the card cycle.");
+    var due = new DateOnly(statement.Year, statement.Month, DateTime.DaysInMonth(statement.Year, statement.Month));
+    var scheduled = CreditGrace.OutstandingPayments(card).Where(p => p.DueDate == due).Sum(p => p.Amount);
+    var missing = amount - scheduled;
+    var unscheduledOpening = card.OpeningBalance - card.OpeningDebtPayments.Sum(p => p.Amount);
+    if (missing == 0) { Console.WriteLine("Statement already reconciled; no changes saved."); return; }
+    if (missing < 0 || missing > unscheduledOpening || card.Transactions.Any(t => t.IsTransfer && t.Kind == CategoryKind.Income))
+        throw new ArgumentException("Statement cannot be reconciled solely by assigning unallocated opening debt; no changes saved.");
+    var corrected = card with { OpeningDebtPayments = [.. card.OpeningDebtPayments, new(due, missing)] };
+    corrected.Validate();
+    BudgetOperations.ValidateTimeline(corrected);
+    if (corrected.Debt != card.Debt || corrected.AvailableBalance != card.AvailableBalance || CreditGrace.OutstandingPayments(corrected).Where(p => p.DueDate == due).Sum(p => p.Amount) != amount)
+        throw new InvalidOperationException("Reconciliation mismatch; no changes saved.");
+    var bytes = File.ReadAllBytes(store.FilePath);
+    var backup = Path.Combine(ProfileLayout.ManualBackups(args[1]), "before-credit-statement-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
+    Directory.CreateDirectory(backup);
+    File.WriteAllBytes(Path.Combine(backup, "accounts.json"), bytes);
+    if (!File.ReadAllBytes(store.FilePath).AsSpan().SequenceEqual(bytes)) throw new IOException("Account data changed while preparing the statement; no changes saved.");
+    store.Save(accounts.Select(a => a.Id == cardId ? corrected : a).ToList());
+    var saved = store.Load().Single(a => a.Id == cardId);
+    if (saved.Debt != card.Debt || saved.AvailableBalance != card.AvailableBalance || CreditGrace.OutstandingPayments(saved).Where(p => p.DueDate == due).Sum(p => p.Amount) != amount)
+        throw new InvalidOperationException("Saved statement verification failed; original data preserved in backup.");
+    Console.WriteLine($"Statement {statement:dd.MM.yyyy}: {Money.Format(amount)} due {due:dd.MM.yyyy}");
+    foreach (var payment in CreditGrace.OutstandingPayments(saved)) Console.WriteLine($"{payment.DueDate:dd.MM.yyyy}: {Money.Format(payment.Amount)}");
+    Console.WriteLine($"Debt unchanged: {Money.Format(saved.Debt)}; available unchanged: {Money.Format(saved.AvailableBalance)}");
+    Console.WriteLine("Backup: " + backup);
+    return;
+}
 if (args.Length == 2 && args[0] == "--organize-profile")
 {
     var root = Path.GetFullPath(args[1]);
-    var names = new[] { "profile.json", "accounts.json", "categories.json" };
+    var names = new[] { "profile.json", "accounts.json", "categories.json", "recurring-payments.json" };
     var originals = names.Where(name => File.Exists(name == "profile.json" ? Path.Combine(root, name) : ProfileLayout.ReadFile(root, name))).ToDictionary(name => name, name => File.ReadAllBytes(name == "profile.json" ? Path.Combine(root, name) : ProfileLayout.ReadFile(root, name)));
     var backup = Path.Combine(ProfileLayout.ManualBackups(root), "before-layout-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
     Directory.CreateDirectory(backup);
@@ -209,7 +292,7 @@ if (args.Length == 6 && args[0] == "--add-income")
     }
     var backup = Path.Combine(ProfileLayout.ManualBackups(args[1]), "before-income-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
     Directory.CreateDirectory(backup);
-    foreach (var file in new[] { "accounts.json", "categories.json", "profile.json" })
+    foreach (var file in new[] { "accounts.json", "categories.json", "profile.json", "recurring-payments.json" })
         if (File.Exists(file == "profile.json" ? Path.Combine(args[1], file) : ProfileLayout.ReadFile(args[1], file))) File.Copy(file == "profile.json" ? Path.Combine(args[1], file) : ProfileLayout.ReadFile(args[1], file), Path.Combine(backup, file));
     var categories = catalog.Load();
     var category = categories.SingleOrDefault(c => c.Kind == CategoryKind.Income && c.Name == args[5]);
@@ -245,7 +328,7 @@ if (args.Length == 9 && args[0] == "--apply-finance-settings")
     foreach (var account in updated) account.Validate();
     var backup = Path.Combine(ProfileLayout.ManualBackups(args[1]), "before-budget-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
     Directory.CreateDirectory(backup);
-    foreach (var file in new[] { "accounts.json", "categories.json", "profile.json" })
+    foreach (var file in new[] { "accounts.json", "categories.json", "profile.json", "recurring-payments.json" })
         if (File.Exists(file == "profile.json" ? Path.Combine(args[1], file) : ProfileLayout.ReadFile(args[1], file))) File.Copy(file == "profile.json" ? Path.Combine(args[1], file) : ProfileLayout.ReadFile(args[1], file), Path.Combine(backup, file));
     store.Save(updated);
     profile.SetBudget(budget, budgetAccountId);
@@ -274,3 +357,21 @@ catch (Exception ex)
     Console.Error.WriteLine(ex);
     Environment.ExitCode = 1;
 }
+
+internal sealed class ProfileWriteLease : IDisposable
+{
+    private readonly Mutex mutex;
+    public ProfileWriteLease(string directory)
+    {
+        var identity = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        var suffix = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identity)));
+        mutex = new Mutex(false, @"Local\SandinFinance." + suffix);
+        var acquired = false;
+        try { acquired = mutex.WaitOne(0); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) { mutex.Dispose(); throw new IOException("Close the application using this profile before modifying the statement."); }
+    }
+    public void Dispose() { mutex.ReleaseMutex(); mutex.Dispose(); }
+}
+
+internal sealed record AccountReconciliation(string ExpectedSha256, Guid AccountId, DateOnly AsOf, decimal TargetBalance, List<Account> Replacements);

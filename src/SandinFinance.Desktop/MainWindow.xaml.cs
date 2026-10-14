@@ -13,6 +13,9 @@ namespace SandinFinance.Desktop;
 public partial class MainWindow : Window
 {
     private readonly AccountStore store;
+    private readonly RecurringPaymentStore paymentStore;
+    private bool remindersDismissed;
+    private IReadOnlyList<PaymentReminder> displayedReminders = [];
     private readonly ProfileStore? profileStore;
     private readonly ObservableCollection<Account> accounts = [];
     private readonly DispatcherTimer interestTimer;
@@ -30,6 +33,7 @@ public partial class MainWindow : Window
         ProfileNameText.Text = profileStore?.Load().Name ?? "Sandin";
         ProfileButton.IsEnabled = profileStore is not null;
         store = new AccountStore(directory);
+        paymentStore = new RecurringPaymentStore(directory);
         accountView = CollectionViewSource.GetDefaultView(accounts);
         accountView.Filter = item => item is Account account && (!account.IsHidden || ShowHiddenInput.IsChecked == true);
         AccountsList.ItemsSource = accountView;
@@ -37,6 +41,10 @@ public partial class MainWindow : Window
         RefreshFromDisk();
         HomePage.Initialize(directory);
         HomePage.OperationSaved += (_, _) => RefreshFromDisk();
+        RecurringPage.Initialize(directory);
+        RecurringPage.PaymentsChanged += (_, _) => { remindersDismissed = false; RefreshReminders(); };
+        HomePage.MakeRecurringRequested += entry => RecurringPage.CreateFromExpense(entry);
+        Loaded += (_, _) => RefreshReminders();
         interestTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         interestTimer.Tick += (_, _) => RefreshForNewDay();
         interestTimer.Start();
@@ -91,6 +99,7 @@ public partial class MainWindow : Window
         RefreshFromDisk();
         HomePage.Visibility = Visibility.Collapsed;
         CategoriesPage.Visibility = Visibility.Collapsed;
+        RecurringPage.Visibility = Visibility.Collapsed;
         AccountsScroll.Visibility = Visibility.Visible;
         SetNavigation(AccountsNav, "счета");
     }
@@ -99,6 +108,7 @@ public partial class MainWindow : Window
     {
         AccountsScroll.Visibility = Visibility.Collapsed;
         CategoriesPage.Visibility = Visibility.Collapsed;
+        RecurringPage.Visibility = Visibility.Collapsed;
         HomePage.Visibility = Visibility.Visible;
         HomePage.Refresh();
         SetNavigation(HomeNav, "главная");
@@ -108,6 +118,7 @@ public partial class MainWindow : Window
     {
         HomePage.Visibility = Visibility.Collapsed;
         AccountsScroll.Visibility = Visibility.Collapsed;
+        RecurringPage.Visibility = Visibility.Collapsed;
         CategoriesPage.Visibility = Visibility.Visible;
         CategoriesPage.Refresh();
         SetNavigation(CategoriesNav, "категории");
@@ -115,7 +126,7 @@ public partial class MainWindow : Window
 
     private void SetNavigation(Button selected, string caption)
     {
-        foreach (var button in new[] { HomeNav, AccountsNav, CategoriesNav })
+        foreach (var button in new[] { HomeNav, AccountsNav, CategoriesNav, RecurringNav })
             button.Background = button == selected ? (System.Windows.Media.Brush)FindResource("Selected") : System.Windows.Media.Brushes.Transparent;
         Title = $"SandinFinance — {caption}";
     }
@@ -124,6 +135,75 @@ public partial class MainWindow : Window
     {
         var postingBoundary = DateTime.Today.AddHours(1);
         if (!showingDialog && (refreshedDate != DateOnly.FromDateTime(DateTime.Today) || (refreshedAt < postingBoundary && DateTime.Now >= postingBoundary))) RefreshFromDisk();
+        RefreshReminders();
+    }
+
+    private void RecurringNav_Click(object sender, RoutedEventArgs e)
+    {
+        HomePage.Visibility = Visibility.Collapsed;
+        CategoriesPage.Visibility = Visibility.Collapsed;
+        AccountsScroll.Visibility = Visibility.Collapsed;
+        RecurringPage.Visibility = Visibility.Visible;
+        RecurringPage.Refresh();
+        SetNavigation(RecurringNav, "регулярные платежи");
+    }
+    private void DismissReminder_Click(object sender, RoutedEventArgs e)
+    {
+        remindersDismissed = true;
+        ReminderBanner.Visibility = Visibility.Collapsed;
+    }
+    private void RefreshReminders()
+    {
+        if (remindersDismissed || paymentStore is null) return;
+        try
+        {
+            var reminders = PaymentReminders.Calculate(store.Load(), paymentStore.Load(), DateTime.Now);
+            displayedReminders = reminders;
+            if (reminders.Count == 0) { ReminderBanner.Visibility = Visibility.Collapsed; return; }
+            var overdue = reminders.Any(p => p.DueAt < DateTime.Now);
+            ReminderHeading.Text = overdue ? "Есть платежи, ожидающие оплаты" : reminders.All(p => p.Kind == PaymentReminderKind.Credit) ? "Приближается срок погашения кредитки" : reminders.All(p => p.Kind == PaymentReminderKind.Recurring) ? "Приближается срок регулярного платежа" : "Приближаются сроки платежей";
+            ReminderHeading.Foreground = (System.Windows.Media.Brush)FindResource(overdue ? "Danger" : "Accent");
+            ReminderItems.ItemsSource = reminders.Take(3).ToList();
+            MoreRemindersText.Text = reminders.Count > 3 ? $"Ещё платежей: {reminders.Count - 3}" : "";
+            MoreRemindersText.Visibility = reminders.Count > 3 ? Visibility.Visible : Visibility.Collapsed;
+            if (ReminderBanner.Visibility == Visibility.Visible) return;
+            ReminderBanner.Visibility = Visibility.Visible;
+            ReminderBanner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
+            var slide = new System.Windows.Media.TranslateTransform(0, -6);
+            ReminderBanner.RenderTransform = slide;
+            slide.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new DoubleAnimation(-6, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
+        {
+            ReminderBanner.Visibility = Visibility.Visible;
+            displayedReminders = [];
+            ReminderHeading.Text = "Не удалось прочитать напоминания о платежах";
+            ReminderItems.ItemsSource = null;
+            MoreRemindersText.Text = ex.Message;
+            MoreRemindersText.Visibility = Visibility.Visible;
+        }
+    }
+    private void ViewReminders_Click(object sender, RoutedEventArgs e)
+    {
+        var reminder = (sender as FrameworkElement)?.DataContext as PaymentReminder ?? displayedReminders.FirstOrDefault();
+        if (reminder?.Kind == PaymentReminderKind.Credit)
+        {
+            AccountsNav_Click(sender, e);
+            if (accounts.Any(account => account.Id == reminder.TargetId && account.IsHidden)) ShowHiddenInput.IsChecked = true;
+            AccountsList.UpdateLayout();
+            FindReminderAccount(AccountsList, reminder.TargetId)?.BringIntoView();
+        }
+        else RecurringNav_Click(sender, e);
+    }
+    private static FrameworkElement? FindReminderAccount(DependencyObject node, Guid id)
+    {
+        if (node is System.Windows.Controls.Border { DataContext: Account account } element && account.Id == id) return element;
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); index++)
+        {
+            var found = FindReminderAccount(System.Windows.Media.VisualTreeHelper.GetChild(node, index), id);
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private void RefreshFromDisk()
@@ -154,6 +234,7 @@ public partial class MainWindow : Window
         }
         RefreshTotals();
         if (HomePage.Visibility == Visibility.Visible) HomePage.Refresh();
+        RefreshReminders();
     }
 
     private void Transfer_Click(object sender, RoutedEventArgs e)

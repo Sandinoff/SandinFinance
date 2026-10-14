@@ -57,13 +57,13 @@
      </WrapPanel>
     </Border>
     <TextBlock Text="Операции за период" Style="{StaticResource SectionTitle}" Margin="0,24,0,14"/>
-    <TextBlock Text="Переводы и автоматические проценты показаны в истории; в диаграмме учитываются обычные расходы и доходы." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+    <TextBlock Text="Начисленные проценты включены в доходы. Переводы между счетами показаны в истории и не входят в суммы диаграммы." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,14"/>
     <ItemsControl x:Name="EntriesList"><ItemsControl.ItemTemplate><DataTemplate>
      <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,10">
       <DockPanel>
        <StackPanel DockPanel.Dock="Right" Margin="16,0,0,0"><TextBlock Text="{Binding AmountText}" Style="{StaticResource SectionTitle}" TextAlignment="Right"/><TextBlock Text="{Binding DateText}" Foreground="{DynamicResource MutedText}" Style="{StaticResource Caption}" Margin="0,4,0,0"/><Button Content="Удалить расход" Foreground="{DynamicResource Danger}" Padding="10,5" HorizontalAlignment="Right" Margin="0,8,0,0" Click="DeleteExpense_Click" Visibility="{Binding CanDeleteExpense, Converter={StaticResource BooleanVisibility}}" AutomationProperties.AutomationId="DeleteExpense"/></StackPanel>
        <ContentControl DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource MerchantBadge}" Margin="0,0,12,0"/>
-       <StackPanel><TextBlock Text="{Binding CategoryName}" FontWeight="SemiBold"/><TextBlock Text="{Binding DetailText}" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,4,0,0"/><Button Content="Изменить" Padding="10,5" HorizontalAlignment="Left" Margin="0,8,0,0" Click="EditExpense_Click" Visibility="{Binding CanEdit, Converter={StaticResource BooleanVisibility}}" AutomationProperties.AutomationId="EditExpense"/></StackPanel>
+       <StackPanel><TextBlock Text="{Binding CategoryName}" FontWeight="SemiBold"/><TextBlock Text="{Binding DetailText}" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,4,0,0"/><WrapPanel><Button Content="Изменить" Padding="10,5" Margin="0,8,8,0" Click="EditExpense_Click" Visibility="{Binding CanEdit, Converter={StaticResource BooleanVisibility}}" AutomationProperties.AutomationId="EditExpense"/><Button Content="↻ В регулярные" Padding="10,5" Margin="0,8,0,0" Click="MakeRecurring_Click" Visibility="{Binding CanMakeRecurring, Converter={StaticResource BooleanVisibility}}" AutomationProperties.AutomationId="MakeRecurring" ToolTip="Создать расписание из этого расхода"/></WrapPanel></StackPanel>
       </DockPanel>
      </Border>
     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>

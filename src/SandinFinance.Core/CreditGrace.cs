@@ -71,11 +71,14 @@ public static class CreditGrace
         RemainingLots(account).Where(lot => lot.DueDate is not null && lot.Remaining > 0).Select(lot => new PurchaseSummary("Начальный долг — без процентов", $"Погасить к {lot.DueDate:dd.MM.yyyy} — {Money.Format(lot.Remaining)}"))
         .Concat(MonthlySummaries(RemainingLots(account).Where(lot => lot.Purchase is not null && lot.Remaining > 0).Select(lot => lot.Purchase! with { Amount = lot.Remaining })));
 
-    public static IEnumerable<PurchaseSummary> PaymentSummaries(Account account) => RemainingLots(account)
+    public static IReadOnlyList<ScheduledPayment> OutstandingPayments(Account account) => !account.IsCredit ? [] : RemainingLots(account)
         .Where(lot => lot.Remaining > 0 && (lot.DueDate is not null || lot.Purchase is not null))
         .GroupBy(lot => lot.DueDate ?? LastDueDate(lot.Purchase!))
         .OrderBy(group => group.Key)
-        .Select(group => new PurchaseSummary($"Задолженность до — {group.Key:dd.MM}", Money.Format(group.Sum(lot => lot.Remaining))));
+        .Select(group => new ScheduledPayment(group.Key, group.Sum(lot => lot.Remaining))).ToList();
+
+    public static IEnumerable<PurchaseSummary> PaymentSummaries(Account account) => OutstandingPayments(account)
+        .Select(payment => new PurchaseSummary($"Задолженность до — {payment.DueDate:dd.MM}", Money.Format(payment.Amount)));
 
     public static DateOnly LastDueDate(CreditPurchase purchase)
     {

@@ -13,12 +13,13 @@ public static class ProfileLayout
         // Check financial files before reorganizing anything. Never replace a different copy.
         new AccountStore(root).Load();
         new CategoryStore(root).Load();
+        new RecurringPaymentStore(root).Load();
         Directory.CreateDirectory(Path.Combine(root, "data"));
         Directory.CreateDirectory(Path.Combine(root, "backups", "automatic"));
         Directory.CreateDirectory(ManualBackups(root));
-        foreach (var name in new[] { "accounts.json", "categories.json" })
+        foreach (var name in new[] { "accounts.json", "categories.json", "recurring-payments.json" })
             MoveFile(Path.Combine(root, name), DataFile(root, name));
-        foreach (var name in new[] { "accounts.json", "categories.json", "profile.json" })
+        foreach (var name in new[] { "accounts.json", "categories.json", "recurring-payments.json", "profile.json" })
         {
             MoveFile(Path.Combine(root, name + ".bak"), AutomaticBackup(root, name));
             if (name != "profile.json") MoveFile(DataFile(root, name) + ".bak", AutomaticBackup(root, name));

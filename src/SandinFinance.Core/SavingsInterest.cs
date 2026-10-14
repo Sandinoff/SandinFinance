@@ -50,13 +50,15 @@ public static class SavingsInterest
 
     public static Account Accrue(Account account, DateOnly asOf, DateTime? now = null)
     {
+        var settingsDate = asOf;
         asOf = EffectiveDate(account, asOf, now);
         account.Validate();
         if (!account.IsSavings) return account;
         var cursor = account.InterestAsOf ?? account.OpeningDate;
-        if (asOf <= cursor) return account;
-        account = EnsureHistory(account);
-        return AccrueCore(account, asOf);
+        var result = asOf <= cursor ? account : AccrueCore(EnsureHistory(account), asOf);
+        // The scheduled rate starts on its calendar date, even before the 01:00 payout.
+        var settings = result.InterestRates.Where(r => r.From <= settingsDate).OrderBy(r => r.From).LastOrDefault();
+        return settings is null ? result : result with { AnnualInterestRate = settings.AnnualRate, InterestPayout = settings.Payout };
     }
 
     private static Account AccrueCore(Account account, DateOnly asOf, List<SavingsAccrual>? history = null)

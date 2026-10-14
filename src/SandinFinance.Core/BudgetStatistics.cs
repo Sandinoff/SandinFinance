@@ -25,13 +25,14 @@ public sealed record DateRange(DateOnly Start, DateOnly End)
 }
 
 public sealed record BudgetEntry(Guid Id, CategoryKind Kind, decimal Amount, DateTime OccurredAt, string AccountName,
-    Guid CategoryId, string CategoryName, string ColorHex, string IconGlyph, string MerchantName, string? PngIconBase64 = null, Guid AccountId = default, bool IsTransfer = false, bool IsInterest = false, DateOnly? InterestDate = null)
+    Guid CategoryId, string CategoryName, string ColorHex, string IconGlyph, string MerchantName, string? PngIconBase64 = null, Guid AccountId = default, bool IsTransfer = false, bool IsInterest = false, DateOnly? InterestDate = null, bool IsExternalTransfer = false)
 {
     public bool CanDeleteExpense => Kind == CategoryKind.Expense && !IsTransfer && !IsInterest;
-    public bool CanEdit => true;
+    public bool CanMakeRecurring => CanDeleteExpense;
+    public bool CanEdit => !IsExternalTransfer;
     public string AmountText => Money.Format(Amount);
     public string DateText => OccurredAt.ToString("dd.MM.yyyy HH:mm", CultureInfo.GetCultureInfo("ru-RU"));
-    public string DetailText => $"{AccountName}" + (string.IsNullOrEmpty(MerchantName) ? "" : $" · {MerchantName}");
+    public string DetailText => IsInterest ? $"{AccountName} · Начисленные проценты" : $"{AccountName}" + (string.IsNullOrEmpty(MerchantName) ? "" : $" · {MerchantName}");
     public string IconLabel => string.IsNullOrEmpty(MerchantName) ? IconGlyph : System.Globalization.StringInfo.GetNextTextElement(MerchantName);
 }
 
@@ -54,9 +55,13 @@ public sealed record BudgetSummary(decimal Total, IReadOnlyList<CategoryTotal> C
 
 public static class BudgetStatistics
 {
+    public static readonly Guid AutomaticInterestCategoryId = new("c72a338b-b3d2-4e47-918f-d61f96b26a33");
+
     public static BudgetSummary Calculate(IEnumerable<Account> accounts, IEnumerable<Category> categories, CategoryKind kind, DateRange range)
     {
         var catalog = categories.ToDictionary(c => c.Id);
+        var interestCategory = catalog.Values.FirstOrDefault(c => c.Kind == CategoryKind.Income && c.Name.Trim().Equals("Проценты", StringComparison.OrdinalIgnoreCase))
+            ?? new Category { Id = AutomaticInterestCategoryId, Kind = CategoryKind.Income, Name = "Проценты", IconKey = "interest", ColorHex = "#789BD4" };
         var entries = accounts.SelectMany(account => account.Transactions.Select(transaction =>
         {
             catalog.TryGetValue(transaction.CategoryId, out var category);
@@ -64,12 +69,12 @@ public static class BudgetStatistics
                 ?? category?.Merchants.FirstOrDefault(m => string.Equals(m.Name, transaction.MerchantName, StringComparison.OrdinalIgnoreCase));
             return new BudgetEntry(transaction.Id, transaction.Kind, transaction.Amount, transaction.OccurredAt, account.Name,
                 transaction.CategoryId, transaction.IsTransfer ? $"Перевод {(transaction.Kind == CategoryKind.Expense ? "на" : "от")} «{transaction.CounterpartyAccountName}»" : category?.Name ?? transaction.CategoryName, category?.ColorHex ?? transaction.CategoryColor,
-                category?.IconGlyph ?? CategoryAppearance.Icons.Single(i => i.Key == transaction.CategoryIcon).Glyph, transaction.MerchantName, merchant?.PngIconBase64, account.Id, transaction.IsTransfer);
+                category?.IconGlyph ?? CategoryAppearance.Icons.Single(i => i.Key == transaction.CategoryIcon).Glyph, transaction.MerchantName, merchant?.PngIconBase64, account.Id, transaction.IsTransfer || transaction.IsExternalTransfer, IsExternalTransfer: transaction.IsExternalTransfer);
         }).Concat(account.Purchases.Select(p => new BudgetEntry(p.Id, CategoryKind.Expense, p.Amount,
             p.Date.ToDateTime(p.Time), account.Name, Guid.Empty, "Без категории", "#607780", "★", p.Name, AccountId: account.Id)))
-            .Concat(account.IsSavings ? SavingsInterest.History(account, DateOnly.FromDateTime(DateTime.Today)).Select(a => new BudgetEntry(Guid.Empty, CategoryKind.Income, a.Amount, a.OccurredAt ?? a.Date.AddDays(1).ToDateTime(TimeOnly.MinValue), account.Name, Guid.Empty, $"Проценты за {a.Date:dd.MM.yyyy}", "#12796B", "🪙", "", AccountId: account.Id, IsInterest: true, InterestDate: a.Date)) : []))
+            .Concat(account.IsSavings ? SavingsInterest.History(account, DateOnly.FromDateTime(DateTime.Today)).Where(a => a.Amount > 0).Select(a => new BudgetEntry(Guid.Empty, CategoryKind.Income, a.Amount, a.OccurredAt ?? a.Date.AddDays(1).ToDateTime(TimeOnly.MinValue), account.Name, interestCategory.Id, interestCategory.Name, interestCategory.ColorHex, interestCategory.IconGlyph, account.Name, AccountId: account.Id, IsInterest: true, InterestDate: a.Date)) : []))
             .Where(e => e.Kind == kind && range.Contains(e.OccurredAt)).OrderByDescending(e => e.OccurredAt).ToList();
-        var statistical = entries.Where(e => !e.IsTransfer && !e.IsInterest).ToList();
+        var statistical = entries.Where(e => !e.IsTransfer && e.Amount > 0).ToList();
         var total = statistical.Sum(e => e.Amount);
         var groups = statistical.GroupBy(e => e.CategoryId).Select(group =>
         {

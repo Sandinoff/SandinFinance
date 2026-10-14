@@ -58,7 +58,7 @@ public sealed class PolygonBackdrop : FrameworkElement
 
     private void Move(object sender, MouseEventArgs e) => MovePointer(e.GetPosition(this));
 
-    private void MovePointer(Point pointer)
+    internal void MovePointer(Point pointer)
     {
         inside = pointer.X >= 0 && pointer.Y >= 0 && pointer.X <= ActualWidth && pointer.Y <= ActualHeight;
         if (!inside) return;

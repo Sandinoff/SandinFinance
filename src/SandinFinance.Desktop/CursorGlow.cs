@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
 
 namespace SandinFinance.Desktop;
 
@@ -26,13 +28,12 @@ public static class CursorGlow
     {
         var window = (Window)sender;
         window.Loaded -= Attach;
-        if (window.Content is not UIElement content) return;
-        var surface = new Grid { ClipToBounds = true };
+        if (window.Template.FindName("WindowEffectsLayer", window) is not Grid surface) return;
         var glow = new GlowSurface { IsHitTestVisible = false, Focusable = false, Opacity = 0 };
-        window.Content = null;
-        surface.Children.Add(content);
         surface.Children.Add(glow);
-        window.Content = surface;
+        var source = HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
+        var trackingCaption = false;
+        source?.AddHook(NonClientInput);
         window.PreviewMouseMove += Move;
         window.MouseLeave += Leave;
         window.Deactivated += Leave;
@@ -40,7 +41,11 @@ public static class CursorGlow
 
         void Move(object sender, MouseEventArgs e)
         {
-            glow.Position = e.GetPosition(glow);
+            Illuminate(e.GetPosition(glow));
+        }
+        void Illuminate(Point pointer)
+        {
+            glow.Position = pointer;
             glow.InvalidateVisual();
             if (!glow.IsLit)
             {
@@ -59,8 +64,32 @@ public static class CursorGlow
             window.MouseLeave -= Leave;
             window.Deactivated -= Leave;
             window.Closed -= Closed;
+            if (source is { IsDisposed: false }) source.RemoveHook(NonClientInput);
+        }
+        IntPtr NonClientInput(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            // Caption dragging remains native, but its mouse moves must also light the background.
+            if (message == 0x00A0 && glow.IsLoaded)
+            {
+                var coordinates = lParam.ToInt64();
+                Illuminate(glow.PointFromScreen(new Point((short)(coordinates & 0xFFFF), (short)((coordinates >> 16) & 0xFFFF))));
+                if (window.FindName("PageBackdrop") is PolygonBackdrop polygons) polygons.MovePointer(glow.TranslatePoint(glow.Position, polygons));
+                if (!trackingCaption)
+                {
+                    var tracking = new MouseTracking { Size = (uint)Marshal.SizeOf<MouseTracking>(), Flags = 0x12, Window = hwnd };
+                    trackingCaption = TrackMouseEvent(ref tracking);
+                }
+            }
+            else if (message == 0x02A2) { trackingCaption = false; Leave(window, EventArgs.Empty); }
+            return IntPtr.Zero;
         }
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseTracking { public uint Size; public uint Flags; public IntPtr Window; public uint HoverTime; }
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TrackMouseEvent(ref MouseTracking tracking);
 
     private sealed class GlowSurface : FrameworkElement
     {

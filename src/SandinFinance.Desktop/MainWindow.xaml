@@ -49,10 +49,22 @@
   </Style>
  </Window.Resources>
  <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <Grid.ColumnDefinitions><ColumnDefinition Width="190"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-  <Border Background="{DynamicResource Sidebar}" Padding="24,32">
+  <Border Grid.RowSpan="2" Background="{DynamicResource Sidebar}" Padding="24,32">
    <DockPanel>
-    <StackPanel DockPanel.Dock="Top">
+    <Button x:Name="ProfileButton" DockPanel.Dock="Bottom" Margin="0,20,0,0" VerticalAlignment="Bottom" Style="{StaticResource SidebarButton}" Click="Profile_Click" ToolTip="Открыть меню профиля">
+     <StackPanel Orientation="Horizontal"><Border Width="28" Height="28" Background="{DynamicResource Selected}" CornerRadius="14" Margin="0,0,10,0"><TextBlock Text="S" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock x:Name="ProfileNameText" Text="Sandin" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+     <Button.ContextMenu>
+      <ContextMenu Style="{StaticResource ProfileMenu}" Placement="Top" VerticalOffset="-2" HasDropShadow="False">
+       <MenuItem Header="Настройки" Style="{StaticResource ProfileMenuItem}" Click="ProfileSettings_Click" AutomationProperties.Name="Настройки профиля">
+        <MenuItem.Icon><Grid Width="18" Height="18"><Path Data="M 6,1 L 12,1 L 12,3 L 15,5 L 17,5 L 17,11 L 15,11 L 13,14 L 13,17 L 7,17 L 7,15 L 4,13 L 1,13 L 1,7 L 3,7 L 5,4 Z" Stroke="{DynamicResource Accent}" StrokeThickness="1.3" StrokeLineJoin="Round"/><Ellipse Width="6" Height="6" Stroke="{DynamicResource Accent}" StrokeThickness="1.3"/></Grid></MenuItem.Icon>
+       </MenuItem>
+      </ContextMenu>
+     </Button.ContextMenu>
+    </Button>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel>
      <Grid x:Name="LogoHeader" Height="136" Background="Transparent" MouseEnter="Logo_MouseEnter" MouseMove="Logo_MouseMove" MouseLeave="Logo_MouseLeave" AutomationProperties.Name="SandinFinance">
       <Grid.Clip><RectangleGeometry Rect="0,0,142,136" RadiusX="18" RadiusY="18"/></Grid.Clip>
       <Border CornerRadius="18" BorderBrush="#455A77" BorderThickness="1">
@@ -69,21 +81,19 @@
      <Button x:Name="HomeNav" Content="Главная" Style="{StaticResource SidebarButton}" Background="{DynamicResource Selected}" Margin="0,30,0,8" Click="HomeNav_Click"/>
      <Button x:Name="AccountsNav" Content="Счета" Style="{StaticResource SidebarButton}" Margin="0,0,0,8" Click="AccountsNav_Click"/>
      <Button x:Name="CategoriesNav" Content="Категории" Style="{StaticResource SidebarButton}" Margin="0,0,0,8" Click="CategoriesNav_Click"/>
+     <Button x:Name="RecurringNav" Style="{StaticResource SidebarButton}" Margin="0,0,0,8" Click="RecurringNav_Click"><TextBlock Text="Регулярные платежи" TextWrapping="Wrap" FontSize="13"/></Button>
     </StackPanel>
-    <Button x:Name="ProfileButton" DockPanel.Dock="Bottom" Margin="0,20,0,0" VerticalAlignment="Bottom" Style="{StaticResource SidebarButton}" Click="Profile_Click" ToolTip="Открыть меню профиля">
-     <StackPanel Orientation="Horizontal"><Border Width="28" Height="28" Background="{DynamicResource Selected}" CornerRadius="14" Margin="0,0,10,0"><TextBlock Text="S" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock x:Name="ProfileNameText" Text="Sandin" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
-     <Button.ContextMenu>
-      <ContextMenu Style="{StaticResource ProfileMenu}" Placement="Top" VerticalOffset="-2" HasDropShadow="False">
-       <MenuItem Header="Настройки" Style="{StaticResource ProfileMenuItem}" Click="ProfileSettings_Click" AutomationProperties.Name="Настройки профиля">
-        <MenuItem.Icon><Grid Width="18" Height="18"><Path Data="M 6,1 L 12,1 L 12,3 L 15,5 L 17,5 L 17,11 L 15,11 L 13,14 L 13,17 L 7,17 L 7,15 L 4,13 L 1,13 L 1,7 L 3,7 L 5,4 Z" Stroke="{DynamicResource Accent}" StrokeThickness="1.3" StrokeLineJoin="Round"/><Ellipse Width="6" Height="6" Stroke="{DynamicResource Accent}" StrokeThickness="1.3"/></Grid></MenuItem.Icon>
-       </MenuItem>
-      </ContextMenu>
-     </Button.ContextMenu>
-    </Button>
+    </ScrollViewer>
    </DockPanel>
   </Border>
-  <local:PolygonBackdrop x:Name="PageBackdrop" Grid.Column="1"/>
-  <ScrollViewer x:Name="AccountsScroll" Grid.Column="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+  <Border x:Name="ReminderBanner" Grid.Column="1" Grid.Row="0" Visibility="Collapsed" Background="{DynamicResource SurfaceMuted}" CornerRadius="14" Margin="30,40,30,0" Padding="16">
+   <DockPanel>
+    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center"><Button Content="Посмотреть" Padding="12,7" Click="ViewReminders_Click" Margin="0,0,8,0"/><Button Style="{StaticResource ChromeCloseButton}" ToolTip="Скрыть до следующего входа" Click="DismissReminder_Click"><Path Data="M 0,0 L 7,7 M 7,0 L 0,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4"/></Button></StackPanel>
+    <StackPanel><TextBlock x:Name="ReminderHeading" Text="Приближается срок платежа" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/><ItemsControl x:Name="ReminderItems" Margin="0,6,0,0"><ItemsControl.ItemTemplate><DataTemplate><Button Background="Transparent" BorderThickness="0" Padding="3,4" Margin="-3,0,0,0" HorizontalContentAlignment="Left" Click="ViewReminders_Click" ToolTip="Открыть соответствующий раздел"><TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap"/></Button></DataTemplate></ItemsControl.ItemTemplate></ItemsControl><TextBlock x:Name="MoreRemindersText" Foreground="{DynamicResource MutedText}" Style="{StaticResource Caption}" Margin="0,6,0,0"/></StackPanel>
+   </DockPanel>
+  </Border>
+  <local:PolygonBackdrop x:Name="PageBackdrop" Grid.Column="1" Grid.RowSpan="2"/>
+  <ScrollViewer x:Name="AccountsScroll" Grid.Column="1" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
    <StackPanel Margin="30">
     <TextBlock Text="Счета" Style="{StaticResource PageTitle}"/>
     <TextBlock Text="Все места, где хранятся ваши деньги" Foreground="{DynamicResource MutedText}" Margin="0,6,0,24"/>
@@ -169,7 +179,8 @@
     <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,10,0,0"/>
    </StackPanel>
   </ScrollViewer>
-  <local:CategoriesView x:Name="CategoriesPage" Grid.Column="1" Visibility="Collapsed"/>
-  <local:HomeView x:Name="HomePage" Grid.Column="1"/>
+  <local:CategoriesView x:Name="CategoriesPage" Grid.Column="1" Grid.Row="1" Visibility="Collapsed"/>
+  <local:HomeView x:Name="HomePage" Grid.Column="1" Grid.Row="1"/>
+  <local:RecurringPaymentsView x:Name="RecurringPage" Grid.Column="1" Grid.Row="1" Visibility="Collapsed"/>
  </Grid>
 </Window>

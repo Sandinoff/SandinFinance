@@ -19,13 +19,14 @@ public partial class TransactionDialog : Window
         categories = new CategoryStore(directory);
         InitializeComponent();
         TimeInputFormatter.Attach(TimeInput);
+        EditableComboBoxDropdown.Attach(MerchantInput);
         var income = kind == CategoryKind.Income;
         Title = income ? "Новый доход — SandinFinance" : "Новый расход — SandinFinance";
         HeadingText.Text = income ? "Новый доход" : "Новый расход";
         AccountLabel.Content = income ? "На какой счёт добавить" : "С какого счёта списать";
         SaveButton.Content = income ? "Сохранить доход" : "Сохранить расход";
         MerchantLabel.Content = income ? "Источник дохода (необязательно)" : "Магазин (необязательно)";
-        AccountInput.ItemsSource = store.LoadAndAccrue(DateOnly.FromDateTime(DateTime.Today)).Where(a => !income || !a.IsCredit).ToList();
+        AccountInput.ItemsSource = store.LoadAndAccrue(DateOnly.FromDateTime(DateTime.Today)).Where(a => !income || !a.IsCredit).OrderBy(a => a.IsHidden).ToList();
         CategoryInput.ItemsSource = categories.Load().Where(c => c.Kind == kind).ToList();
         AccountInput.SelectedIndex = 0;
         CategoryInput.SelectedIndex = 0;
@@ -52,8 +53,9 @@ public partial class TransactionDialog : Window
     {
         if (MerchantInput is null) return;
         var category = CategoryInput.SelectedItem as Category;
-        MerchantLabel.Content = category?.IsTransport == true ? "Товар, услуга или место (необязательно)" : kind == CategoryKind.Income ? "Источник дохода (необязательно)" : "Магазин (необязательно)";
+        MerchantLabel.Content = category?.IsTransport == true ? "Товары и услуги (необязательно)" : kind == CategoryKind.Income ? "Источник дохода (необязательно)" : "Магазин (необязательно)";
         MerchantInput.ItemsSource = category?.Merchants ?? new List<Merchant>();
+        MerchantInput.SelectedIndex = -1;
         MerchantInput.Text = "";
     }
 
